@@ -1,4 +1,5 @@
 import { addLog } from "./state.js";
+import { buildSettlementTagParts } from "./companies.js";
 import { expectedInterviewPass, updateJobSearchRating } from "./match.js";
 import { hasTalent } from "./talents.js";
 import { applyStressDelta } from "./talentRuntime.js";
@@ -168,6 +169,7 @@ export function processInterviewsAtDayStart(state, options = {}) {
         name: company.name,
         logo: company.logo ?? "🏢",
         tags: [...(company.visibleTags ?? [])],
+        settlementTags: buildSettlementTagParts(company),
         salaryTier,
         industry: company.industry ?? "other",
         salaryDisplayMultiplier: hasTalent(state, "bluff") ? 1.2 : 1,

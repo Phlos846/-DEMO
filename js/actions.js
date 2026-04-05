@@ -14,7 +14,6 @@ export const ACTION_COSTS = {
   fun: { stress: -28, energy: -11, money: -55 },
   study: { energy: -15, stress: 3, hiddenResume: 2, hiddenInterview: 1, resumeQuality: 3 },
   apply: { energy: -8, stress: 4 },
-  path_startup: { energy: -16, stress: 4, resumeQuality: 2 },
 };
 
 function clamp(n, lo, hi) {
@@ -139,13 +138,6 @@ export function applyDailyAction(state, actionId) {
     applyEnergyDelta(state, c.energy ?? 0);
     applyStressDelta(state, c.stress ?? 0, "action");
     return "准备投递：整理材料，精力下降，求职焦虑上升。";
-  }
-  if (actionId === "path_startup") {
-    applyEnergyDelta(state, c.energy ?? 0);
-    applyStressDelta(state, c.stress ?? 0, "action");
-    state.resumeQuality = clampResumeToCap(state, state.resumeQuality + (c.resumeQuality ?? 0));
-    state.pathStartup = (state.pathStartup ?? 0) + 1;
-    return "创业脑暴：画饼、写 BP、拉室友入股（口头）。";
   }
   return "";
 }

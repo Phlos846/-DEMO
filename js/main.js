@@ -55,6 +55,14 @@ import {
   shouldPromptPlayerOfferChoice,
 } from "./endings.js";
 import { pruneExpiredTransientEffects } from "./transientEffects.js";
+import { computeEndOfferStarRating } from "./companies.js";
+import {
+  renderCodex,
+  unlockFromRolledTraits,
+  unlockTalentsFromState,
+  unlockEvent,
+  unlockEnding,
+} from "./codex.js";
 
 let state = null;
 let pendingEvent = null;
@@ -62,6 +70,8 @@ let pendingEvent = null;
 let lastEndingForShare = null;
 /** 开局界面预览用（与正式开局同一引用，天才天赋会在开局时改写学历） */
 let previewRolled = rollAllTraits();
+/** 图鉴弹窗当前分类 */
+let codexTab = "personality";
 
 const $ = (id) => document.getElementById(id);
 
@@ -148,6 +158,8 @@ function bindStart() {
       const godMode = cheatRaw === "114514";
 
       state = createInitialState({ rolledTraits: previewRolled, godMode });
+      unlockFromRolledTraits(previewRolled);
+      unlockTalentsFromState(state.playerTalents);
       for (const line of formatRolledTraitsLog(state.traits)) {
         addLog(state, line);
       }
@@ -177,11 +189,42 @@ function bindStart() {
           return;
         }
         previewRolled = rollAllTraits();
+        unlockFromRolledTraits(previewRolled);
         renderStartTraitPreview();
       } catch (e) {
         console.error(e);
       }
     });
+  }
+}
+
+function openCodex() {
+  const modal = $("modal-codex");
+  if (!modal) return;
+  modal.classList.remove("hidden");
+  renderCodex(modal, codexTab);
+}
+
+function bindCodex() {
+  const modal = $("modal-codex");
+  if (!modal) return;
+  const closeBtn = $("btn-codex-close");
+  if (closeBtn) {
+    closeBtn.addEventListener("click", () => {
+      modal.classList.add("hidden");
+    });
+  }
+  modal.querySelectorAll("[data-codex-tab]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const t = btn.getAttribute("data-codex-tab");
+      if (!t) return;
+      codexTab = t;
+      renderCodex(modal, codexTab);
+    });
+  });
+  for (const id of ["btn-codex-start", "btn-codex-end"]) {
+    const b = $(id);
+    if (b) b.addEventListener("click", () => openCodex());
   }
 }
 
@@ -298,10 +341,11 @@ function refreshMain() {
   const canAct = state.actionPoints > 0 && !state.gameOver;
   document.querySelectorAll(".action-btn").forEach((btn) => {
     const act = btn.dataset.action;
-    let dis = !canAct;
+    let dis = !state.gameOver;
+    if (act === "study") dis = dis || state.actionPoints < 2;
+    else dis = dis || !canAct;
     if (act === "apply") dis = dis || state.energy < 10;
     if (act === "fun") dis = dis || (state.money ?? 0) < minCashForFunAction(state);
-    if (act === "path_startup") dis = dis || state.energy < 18;
     btn.disabled = dis;
   });
   $("btn-end-day").disabled = state.actionPoints > 0 || state.gameOver;
@@ -403,6 +447,7 @@ function showNextInterviewResultModal() {
 
 function closeEventModal() {
   if (pendingEvent && state) {
+    if (pendingEvent.id) unlockEvent(pendingEvent.id);
     const settleNow = pendingEvent.immediateSettle;
     resolveEvent(state, pendingEvent);
     pendingEvent = null;
@@ -427,6 +472,7 @@ function closeEventModal() {
 
 function renderEndScreen(end) {
   lastEndingForShare = end;
+  if (end?.id) unlockEnding(end.id);
   const endEmoji = $("end-emoji");
   if (endEmoji) endEmoji.textContent = getEndingEmoji(end.id);
   $("end-title").textContent = end.title;
@@ -482,9 +528,14 @@ function renderEndScreen(end) {
         sal.textContent = line;
       }
       const tg = $("end-best-tags");
-      if (tg) tg.textContent = Array.isArray(best.tags) && best.tags.length ? best.tags.join(" · ") : "（无标签展示）";
+      if (tg) {
+        tg.classList.remove("muted");
+        tg.innerHTML = buildEndOfferTagsHtml(best);
+      }
+      renderEndCompanyRating(best);
     } else {
       bestOfferEl.classList.add("hidden");
+      $("end-company-rating")?.classList.add("hidden");
     }
   }
 
@@ -508,17 +559,14 @@ function renderOfferPickScreen() {
   if (!list || !state?.offers?.length) return;
   const offers = state.offers;
   list.innerHTML = offers
-    .map((o, i) => {
-      const trap = o.isPyramidTrap
-        ? ' <span class="offer-pick-trap" title="隐藏标签为传销陷阱">（传销陷阱）</span>'
-        : "";
-      return `<label class="offer-pick-row">
+    .map(
+      (o, i) => `<label class="offer-pick-row">
   <input type="radio" name="offer-pick" value="${i}" />
   <span class="offer-pick-main"><span class="offer-pick-logo" aria-hidden="true">${o.logo ?? "💼"}</span>
   <span class="offer-pick-name">${escapeHtml(o.name ?? "")}</span>
-  <span class="offer-pick-tier muted">${escapeHtml(o.salaryTier ?? "薪资面议")}</span>${trap}</span>
-</label>`;
-    })
+  <span class="offer-pick-tier muted">${escapeHtml(o.salaryTier ?? "薪资面议")}</span></span>
+</label>`,
+    )
     .join("");
   if (btn) btn.disabled = true;
   list.querySelectorAll('input[name="offer-pick"]').forEach((radio) => {
@@ -616,7 +664,12 @@ function bindMainActions() {
   document.querySelectorAll(".action-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
       const action = btn.dataset.action;
-      if (!state || state.gameOver || state.actionPoints <= 0) return;
+      if (!state || state.gameOver) return;
+      if (action === "study") {
+        if (state.actionPoints < 2) return;
+      } else if (state.actionPoints <= 0) {
+        return;
+      }
 
       if (action === "apply") {
         if (state.energy < 10) return;
@@ -664,7 +717,7 @@ function bindMainActions() {
       }
 
       const note = applyDailyAction(state, action);
-      let apDed = 1;
+      let apDed = action === "study" ? 2 : 1;
       if (state.funNextActionFree) {
         state.funNextActionFree = false;
         apDed = 0;
@@ -715,6 +768,64 @@ function qualityLabel(q) {
   if (q === "bad") return "坏";
   if (q === "good") return "好";
   return "一般";
+}
+
+function renderEndCompanyRating(best) {
+  const wrap = $("end-company-rating");
+  if (!wrap) return;
+  const r = computeEndOfferStarRating(best);
+  wrap.classList.remove("hidden");
+  wrap.classList.toggle("end-company-rating--pyramid", r.isPyramid);
+  const n = r.stars;
+  const isNeg = !r.isPyramid && n < 0;
+  const count = r.isPyramid ? 0 : Math.abs(n);
+  wrap.classList.toggle("end-company-rating--colorful", Boolean(r.colorful && !r.isPyramid && n > 0));
+  wrap.classList.toggle("end-company-rating--negative", isNeg);
+  let starsHtml = "";
+  let aria = "";
+  if (r.isPyramid) {
+    aria = "0 星";
+  } else if (isNeg) {
+    starsHtml = Array.from({ length: count }, () => '<span class="end-star end-star--red" aria-hidden="true">★</span>').join("");
+    aria = `负 ${count} 星`;
+  } else if (n > 0) {
+    starsHtml = Array.from({ length: n }, () => '<span class="end-star" aria-hidden="true">★</span>').join("");
+    aria = `${n} 星`;
+  } else {
+    aria = "0 星";
+  }
+  const note = r.isPyramid
+    ? '<span class="end-company-rating-note muted">传销公司不参与评分</span>'
+    : "";
+  wrap.innerHTML = `
+    <h4 class="end-company-rating-title">公司评分</h4>
+    <div class="end-stars-row" role="img" aria-label="${aria}">${starsHtml || '<span class="end-stars-zero muted">0 星</span>'}</div>
+    ${note}
+  `;
+}
+
+/** 结算页主 Offer：带好坏一般色；含隐藏词条（仅结算展示） */
+function buildEndOfferTagsHtml(best) {
+  const st = best.settlementTags;
+  if (!st?.parts?.length && !st?.hidden) {
+    return Array.isArray(best.tags) && best.tags.length
+      ? escapeHtml(best.tags.join(" · "))
+      : "（无标签展示）";
+  }
+  const bits = [];
+  for (const p of st.parts ?? []) {
+    const q = p.quality ?? "normal";
+    bits.push(
+      `<span class="tag end-offer-tag"><span class="end-offer-tag-label">${escapeHtml(p.label)}</span><span class="tag-quality tag-q-${q}">${qualityLabel(q)}</span></span>`,
+    );
+  }
+  if (st.hidden) {
+    const q = st.hidden.quality ?? "normal";
+    bits.push(
+      `<span class="tag end-offer-tag end-offer-tag--hidden"><span class="end-offer-tag-prefix">隐藏</span><span class="end-offer-tag-label">${escapeHtml(st.hidden.label)}</span><span class="tag-quality tag-q-${q}">${qualityLabel(q)}</span></span>`,
+    );
+  }
+  return bits.join(" ");
 }
 
 function renderApplyScreen() {
@@ -949,6 +1060,7 @@ function bindOfferPick() {
 }
 
 bindStart();
+bindCodex();
 bindMainActions();
 bindApplyScreen();
 bindRestart();
@@ -958,6 +1070,44 @@ bindOfferPick();
 bindEarlySettle();
 bindInterviewResultModal();
 renderStartTraitPreview();
+unlockFromRolledTraits(previewRolled);
+
+const TUTORIAL_STORAGE_KEY = "ar_tutorial_seen_v1";
+/** 新手说明，≤45 字 */
+const TUTORIAL_INTRO =
+  "秋招模拟器：三十天投简历、刷脸、抗压，Offer随缘——输了重开，反正比真秋招便宜。";
+
+function bindTutorial() {
+  const modal = $("modal-tutorial");
+  const btn = $("btn-tutorial-ok");
+  const body = $("tutorial-body");
+  if (!modal || !btn) return;
+  if (body) body.textContent = TUTORIAL_INTRO;
+  btn.addEventListener("click", () => {
+    try {
+      localStorage.setItem(TUTORIAL_STORAGE_KEY, "1");
+    } catch (e) {
+      /* ignore */
+    }
+    modal.classList.add("hidden");
+  });
+}
+
+function maybeShowTutorial() {
+  try {
+    if (localStorage.getItem(TUTORIAL_STORAGE_KEY)) return;
+  } catch (e) {
+    return;
+  }
+  const modal = $("modal-tutorial");
+  const fail = $("boot-fail");
+  if (!modal) return;
+  if (fail && !fail.classList.contains("hidden")) return;
+  modal.classList.remove("hidden");
+}
+
+bindTutorial();
+maybeShowTutorial();
 
 function bindInterviewResultModal() {
   const btn = $("btn-interview-result-ok");

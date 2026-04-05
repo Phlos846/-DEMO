@@ -263,7 +263,7 @@ export function rollExeGlitchForDay(state) {
 
 /** 计算当日最大行动点（不含当前已消耗） */
 export function computeMaxActionPointsForDay(state) {
-  let cap = 3;
+  let cap = 4;
   if (hasTalent(state, "efficient")) cap += 1;
   if (hasTalent(state, "parttime") && state.day % 2 === 0) cap -= 1;
   if (hasTalent(state, "night_owl") && state.day % 2 === 1) cap += 1;
@@ -397,7 +397,7 @@ export function getEndingTalentNumericHints(state) {
     hints.push(`压力上限：${state.stressMax}`);
   }
   const cap = computeMaxActionPointsForDay(state);
-  if (cap !== 3 || (state.exeGlitchToday ?? 0) !== 0) {
+  if (cap !== 4 || (state.exeGlitchToday ?? 0) !== 0) {
     hints.push(`结算日行动点上限：${cap}（含天赋与当日特殊）`);
   }
   if (hasTalent(state, "frail_body")) {

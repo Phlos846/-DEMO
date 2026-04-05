@@ -181,7 +181,7 @@ export function simulateForwardNaturalDays(state, steps) {
 }
 
 /** 随机事件表：玩梗文案 + emoji；部分需压力/精力/金钱等门槛才进入随机池 */
-const EVENT_DEFS = [
+export const EVENT_DEFS = [
   {
     id: "evt_network",
     emoji: "🤝",
@@ -1601,6 +1601,7 @@ export function tryStudyBreakthroughEvent(state) {
   state.studyCountWhileOverloadDebuff = 0;
   state.studyRecoveryBuffUntilDay = state.day + 2;
   return {
+    id: "evt_study_breakthrough",
     title: "咬牙顿悟",
     desc: `你在效率低谷里仍硬啃书本，某一刻突然想通了：过劳的迷雾散去，「用脑过度」状态解除；接下来三个自然日「学习」带来的隐藏简历、隐藏面试与简历完整度增益约为 ×${STUDY_RECOVERY_BUFF_MULT.toFixed(2)}。`,
     emoji: "💡",
@@ -1627,6 +1628,7 @@ export function tryStudyOverloadEvent(state) {
   state.studyOverloadDebuffUntilDay = state.day + 2;
   state.studyCountWhileOverloadDebuff = 0;
   return {
+    id: "evt_study_overload",
     title: "用脑过度",
     desc:
       "最近五天里你学习次数拉满，大脑已经抗议了。接下来三个自然日「学习」带来的隐藏简历、隐藏面试与简历完整度增益会明显下降，记得穿插休息；若在低谷期仍坚持学习超过三次，有机会顿悟翻身。",

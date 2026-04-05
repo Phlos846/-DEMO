@@ -649,6 +649,98 @@ button.danger {
   font-weight: 600;
 }
 
+.end-best-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  align-items: flex-start;
+  margin: 0;
+  margin-top: 0.35rem;
+  font-size: 0.86rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+
+.end-company-rating {
+  margin-top: 0.65rem;
+  padding-top: 0.55rem;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.end-company-rating-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.end-stars-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.12rem;
+  font-size: 1.35rem;
+  line-height: 1.2;
+  letter-spacing: 0.02em;
+}
+
+.end-star {
+  color: #f5c542;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.end-star.end-star--red {
+  color: #e53935;
+  text-shadow: 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.end-company-rating--colorful .end-star {
+  background: linear-gradient(
+    110deg,
+    #fbbf24 0%,
+    #fb7185 22%,
+    #a78bfa 45%,
+    #38bdf8 68%,
+    #4ade80 88%,
+    #fbbf24 100%
+  );
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  text-shadow: none;
+  filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.15));
+}
+
+.end-company-rating-note {
+  display: block;
+  margin-top: 0.35rem;
+  font-size: 0.78rem;
+}
+
+.end-offer-tag {
+  display: inline-flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.25rem;
+  max-width: 100%;
+}
+
+.end-offer-tag-label {
+  word-break: break-word;
+}
+
+.end-offer-tag-prefix {
+  font-size: 0.68rem;
+  color: var(--muted);
+  margin-right: 0.15rem;
+}
+
+.end-offer-tag--hidden {
+  border: 1px solid var(--border);
+}
+
 .end-card {
   text-align: center;
 }
@@ -762,12 +854,6 @@ button.danger {
   margin: 0 0 0.35rem;
   font-size: 0.9rem;
   color: var(--text);
-}
-
-.end-best-tags {
-  margin: 0;
-  font-size: 0.86rem;
-  line-height: 1.45;
 }
 
 /* 临界压力 / 低精力：全屏氛围（#vital-fx z-index 低于 .modal，弹窗在上） */
@@ -916,4 +1002,112 @@ body.vital-stress-active.vital-energy-active #app {
   body.vital-energy-active #app {
     animation: none;
   }
+}
+
+/* —— 图鉴 —— */
+.codex-modal-card {
+  max-width: min(560px, 100%);
+  width: 100%;
+  text-align: left;
+}
+
+.codex-modal-card #codex-title {
+  margin-top: 0;
+  text-align: center;
+}
+
+.codex-global-line {
+  font-size: 0.88rem;
+  margin: 0.35rem 0 0.25rem;
+  line-height: 1.45;
+  text-align: center;
+}
+
+.codex-tab-line {
+  margin: 0.5rem 0 0.25rem;
+  font-size: 0.92rem;
+  text-align: center;
+}
+
+.codex-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin: 0.65rem 0 0.5rem;
+  justify-content: center;
+}
+
+.codex-tabs button {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.88rem;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.2);
+  color: inherit;
+  cursor: pointer;
+}
+
+.codex-tabs button:hover {
+  border-color: rgba(255, 255, 255, 0.22);
+}
+
+.codex-tabs button.codex-tab--active {
+  border-color: rgba(100, 180, 255, 0.55);
+  background: rgba(60, 120, 200, 0.22);
+}
+
+.codex-panel {
+  max-height: min(52vh, 400px);
+  overflow-y: auto;
+  margin: 0.5rem 0 1rem;
+  padding-right: 0.25rem;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+}
+
+.codex-entry {
+  padding: 0.65rem 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.codex-entry:last-child {
+  border-bottom: none;
+}
+
+.codex-entry-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.35rem;
+  margin-bottom: 0.25rem;
+}
+
+.codex-entry-title {
+  font-weight: 600;
+}
+
+.codex-entry-emoji {
+  font-size: 1.15rem;
+  line-height: 1;
+  user-select: none;
+}
+
+.codex-entry-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.codex-entry--locked .codex-entry-title {
+  letter-spacing: 0.08em;
+}
+
+.codex-rarity-tag {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+}
+
+.codex-modal-card #btn-codex-close {
+  width: 100%;
 }

@@ -19,6 +19,7 @@ import {
 } from "./companies.js";
 import { hasTalent } from "./talents.js";
 import { talentPassBonus } from "./talentRuntime.js";
+import { getNetaPresetById } from "./netaCompanies.js";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -90,7 +91,7 @@ export function companyTagPassModifier(tags) {
   return clamp(mod, 0.42, 1.32);
 }
 
-/** 学历越高基础成功率越高（与 traits 中学历 tier 对应）；各档约为旧版 ×0.7；含硕士/博士附加学历时基础 ×1.2；最后统一 ×0.9 作用于简历/面试基础成功率 */
+/** 学历越高基础成功率越高（与 traits 中学历 tier 对应）；表内系数读出后统一 ×1.1；含硕士/博士附加学历时基础 ×1.2；最后统一 ×0.9。简历过筛在 expectedResumePass 内再 ×1.05（各学位投递基础 +5%）。 */
 function educationBasePassRate(state) {
   const eduId = state?.traits?.education?.id;
   const map = {
@@ -98,12 +99,13 @@ function educationBasePassRate(state) {
     edu_985: 0.245,
     edu_haigui: 0.238,
     edu_211: 0.2065,
-    edu_puben: 0.161,
-    /** 大专/野鸡略加强，仍低于普本 */
-    edu_yeji: 0.152,
-    edu_dazhuan: 0.122,
+    edu_puben: 0.175,
+    /** 大专 < 野鸡 < 普本，整体较前版略提高 */
+    edu_yeji: 0.165,
+    edu_dazhuan: 0.14,
   };
-  let base = map[eduId] ?? 0.154;
+  let base = map[eduId] ?? 0.162;
+  base *= 1.1;
   if (
     state?.traits?.extraDegrees?.some(
       (e) => e.id === "extra_master" || e.id === "extra_phd",
@@ -214,7 +216,7 @@ export function expectedResumePass(state, company, hiddenRevealed) {
   const tags = company.tags;
   if (!tags) return 0.02;
 
-  const base = educationBasePassRate(state);
+  const base = educationBasePassRate(state) * 1.05;
   const cmod = companyTagPassModifier(tags);
   const resumeMod = resumeQualityPassModifier(state);
   const hidMod = hiddenResumePassModifier(state);
@@ -465,6 +467,52 @@ function augmentPyramidVisibleGoodTags(tags, seed) {
   }
 }
 
+/** 梗公司：固定薪资档 + 待遇/风评，与 netaCompanies 预设一致 */
+function materializeNetaCompany(state, shell) {
+  const preset = getNetaPresetById(shell.netaPresetId);
+  const salMeta = preset ? SALARY_BANDS_META.find((b) => b.id === preset.salaryBandId) : null;
+  const trMeta = preset ? TREATMENT_TAGS.find((t) => t.id === preset.treatmentId) : null;
+  if (!preset || !salMeta || !trMeta) {
+    delete shell.isNetaRef;
+    delete shell.netaPresetId;
+    materializeCompany(state, shell);
+    return;
+  }
+  const salary = {
+    id: salMeta.id,
+    label: salMeta.label,
+    tier: salMeta.tier,
+    quality: salaryQualityFromAnnualLowWan(salaryLowWanFromLabel(salMeta.label)),
+  };
+  const treatment = { id: trMeta.id, label: trMeta.label, quality: trMeta.quality };
+  const reputation = [];
+  for (const rid of preset.reputationIds) {
+    const r = REPUTATION_TAGS.find((x) => x.id === rid);
+    if (r) reputation.push({ id: r.id, label: r.label, quality: r.quality });
+  }
+  const tags = { salary, treatment, reputation };
+  let hiddenTag = null;
+  if (preset.hasHidden) {
+    if (preset.hiddenId) {
+      const h = HIDDEN_POOL.find((x) => x.id === preset.hiddenId);
+      if (h) hiddenTag = { ...h };
+    } else {
+      hiddenTag = { ...pickSeeded(HIDDEN_POOL, shell.baseSeed + 5000) };
+    }
+  }
+  if (hiddenTag?.id === "hid_pyramid") {
+    augmentPyramidVisibleGoodTags(tags, shell.baseSeed + 9021);
+  }
+  shell.tags = tags;
+  shell.hasHidden = !!hiddenTag;
+  shell.hiddenTag = hiddenTag;
+  shell.baseApplyBonus = computeBaseApplyBonusFromTags(tags, tags.salary.tier);
+  shell.visibleTags = getFlatTagLabels({ tags });
+  shell.difficulty = computeCompanyDifficulty(shell);
+  shell._genRating = state.jobSearchRating;
+  shell.industry = preset.industry;
+}
+
 /** 上帝模式：顶配薪资 + 全好标签、无隐藏雷 */
 function materializeCompanyGodMode(shell) {
   const top = SALARY_BANDS_META[SALARY_BANDS_META.length - 1];
@@ -489,6 +537,10 @@ function materializeCompanyGodMode(shell) {
  * 按当前匹配分生成/刷新公司标签与难度（同一职位每次进入投递序列时随匹配分更新）
  */
 export function materializeCompany(state, shell) {
+  if (shell.isNetaRef && shell.netaPresetId) {
+    materializeNetaCompany(state, shell);
+    return;
+  }
   if (state.godMode) {
     materializeCompanyGodMode(shell);
     return;

@@ -14,7 +14,7 @@
   <div id="app">
     <header class="top-bar">
       <h1>秋招模拟器</h1>
-      <p class="subtitle">第 <span id="day-num">1</span> / 30 天 · 行动点 <span id="ap">3</span> / 3</p>
+      <p class="subtitle">第 <span id="day-num">1</span> / 30 天 · 行动点 <span id="ap">4</span> / 4</p>
     </header>
 
     <section id="screen-start" class="screen">
@@ -24,7 +24,7 @@
         <label class="hint" for="cheat-code">作弊码（可选，开局前输入）</label>
         <input type="text" id="cheat-code" class="cheat-input" placeholder="留空即正常模式" autocomplete="off" />
         <div id="start-trait-preview" class="card subtle start-preview"></div>
-        <p class="hint"><button type="button" id="btn-reroll-traits" class="secondary">重随词条</button>（需先完成过至少一局）</p>
+        <p class="hint"><button type="button" id="btn-reroll-traits" class="secondary">重随词条</button>（需先完成过至少一局） · <button type="button" id="btn-codex-start" class="secondary">图鉴</button></p>
         <p id="boot-fail" class="hint boot-fail hidden">
           游戏脚本未能加载。请<strong>不要</strong>用资源管理器直接双击打开本页（浏览器地址栏以 <code>file://</code> 开头时按钮会失效）。
           请关闭本窗口，双击运行文件夹里的 <strong>start.bat</strong>，或在本文件夹打开终端执行
@@ -41,7 +41,7 @@
           <span class="label">现金</span><span id="res-money" class="value">4800</span>
           <span id="res-debt-wrap" class="muted hidden"> · 负债 <span id="res-debt">0</span></span>
         </div>
-        <div class="res"><span class="label">行动点</span><span id="res-ap" class="value">3</span></div>
+        <div class="res"><span class="label">行动点</span><span id="res-ap" class="value">4</span></div>
         <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30.0</span> / <span id="res-stress-max">100</span></div>
         <div class="res"><span class="label">精力值</span><span id="res-energy" class="value">80</span> / <span id="res-energy-max">100</span></div>
         <div class="res"><span class="label">简历完整度</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
@@ -60,13 +60,12 @@
 
       <div class="actions card">
         <h2>今日安排</h2>
-        <p class="hint">每选一项消耗 1 行动点；用尽后可结束本日，或<strong>每日限一次</strong>透支再行动 1 点。透支后，下次进入下一日时将<strong>不获得跨日精力恢复</strong>并<strong>额外 -15 精力</strong>。</p>
+        <p class="hint">除「学习」消耗 <strong>2</strong> 行动点外，其余每项消耗 1 行动点；用尽后可结束本日，或<strong>每日限一次</strong>透支再行动 1 点。透支后，下次进入下一日时将<strong>不获得跨日精力恢复</strong>并<strong>额外 -15 精力</strong>。</p>
         <div class="action-grid">
           <button type="button" class="action-btn" data-action="rest">休息<br><small>降压力、回精力</small></button>
           <button type="button" class="action-btn" data-action="fun">娱乐<br><small>降压力，耗精力与金钱；20% 额外触发娱乐类随机事件</small></button>
-          <button type="button" class="action-btn" data-action="study">学习<br><small>耗精力，提升隐藏通过率</small></button>
+          <button type="button" class="action-btn" data-action="study">学习<br><small>2 行动点 · 耗精力，提升隐藏通过率</small></button>
           <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力；本轮结束 +1～2 完整度</small></button>
-          <button type="button" class="action-btn" data-action="path_startup">创业脑暴<br><small>累计 4 次可走创业线</small></button>
         </div>
         <p class="hint early-settle-hint hidden">
           <button type="button" id="btn-early-settle" class="secondary">提前结算本局</button>
@@ -109,7 +108,7 @@
     <section id="screen-offer-pick" class="screen hidden">
       <div class="card offer-pick-card">
         <h2>选择本局主 Offer</h2>
-        <p class="hint">用于结局判定与下方展示；选中带传销陷阱的 Offer 将进入传销结局。</p>
+        <p class="hint">用于结局判定与结算页展示。词条与隐藏信息仅在<strong>最终结算</strong>时完整显示；此处请勿依赖标签判断风险。</p>
         <div id="offer-pick-list" class="offer-pick-list" role="radiogroup" aria-label="主 Offer"></div>
         <button type="button" id="btn-offer-pick-confirm" class="primary" disabled>确认选择</button>
       </div>
@@ -129,12 +128,14 @@
             <div class="end-best-offer-main">
               <p id="end-best-name" class="end-best-name"></p>
               <p id="end-best-salary" class="end-best-salary"></p>
-              <p id="end-best-tags" class="end-best-tags muted"></p>
+              <p id="end-best-tags" class="end-best-tags"></p>
+              <div id="end-company-rating" class="end-company-rating hidden" aria-live="polite"></div>
             </div>
           </div>
         </div>
         <ul id="end-stats"></ul>
         <div class="end-actions">
+          <button type="button" id="btn-codex-end" class="secondary">图鉴</button>
           <button type="button" id="btn-share-end" class="secondary">分享本局结果</button>
           <button type="button" id="btn-restart" class="primary">再来一局</button>
         </div>
@@ -156,6 +157,31 @@
         <h2 id="interview-result-title">面试结果</h2>
         <p id="interview-result-desc" class="interview-result-desc"></p>
         <button type="button" id="btn-interview-result-ok" class="primary">确定</button>
+      </div>
+    </div>
+
+    <div id="modal-codex" class="modal hidden" role="dialog" aria-labelledby="codex-title" aria-modal="true">
+      <div class="modal-inner card codex-modal-card">
+        <h2 id="codex-title">图鉴</h2>
+        <div id="codex-summary"></div>
+        <p id="codex-tab-line" class="codex-tab-line muted"></p>
+        <div class="codex-tabs" role="tablist" aria-label="图鉴分类">
+          <button type="button" role="tab" data-codex-tab="personality">性格</button>
+          <button type="button" role="tab" data-codex-tab="other">其他</button>
+          <button type="button" role="tab" data-codex-tab="talent">天赋</button>
+          <button type="button" role="tab" data-codex-tab="event">事件</button>
+          <button type="button" role="tab" data-codex-tab="ending">结局</button>
+        </div>
+        <div id="codex-panel" class="codex-panel"></div>
+        <button type="button" id="btn-codex-close" class="primary">关闭</button>
+      </div>
+    </div>
+
+    <div id="modal-tutorial" class="modal hidden" role="dialog" aria-labelledby="tutorial-title" aria-modal="true">
+      <div class="modal-inner card tutorial-modal-card">
+        <h2 id="tutorial-title">先读这一条</h2>
+        <p id="tutorial-body" class="tutorial-body"></p>
+        <button type="button" id="btn-tutorial-ok" class="primary">懂了，开卷</button>
       </div>
     </div>
   </div>

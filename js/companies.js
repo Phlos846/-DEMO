@@ -1,5 +1,7 @@
 /** 公司名与 tag 词库；完整 tag 由 match.js 按匹配分动态生成 */
 
+import { NETA_COMPANY_PRESETS, createNetaShell } from "./netaCompanies.js";
+
 export function hashSeed(seed) {
   let h = seed >>> 0;
   h = (h * 1664525 + 1013904223) >>> 0;
@@ -225,6 +227,81 @@ export function getFlatTagLabels(company) {
   return [t.salary.label, t.treatment.label, ...reps];
 }
 
+/**
+ * 结算页专用：结构化可见词条 + 隐藏词条（与是否侧面打听无关，始终含隐藏）。
+ * @returns {{ parts: { label: string, quality: string }[], hidden: { label: string, quality: string } | null }}
+ */
+export function buildSettlementTagParts(company) {
+  const t = company.tags;
+  const hidden =
+    company.hasHidden && company.hiddenTag
+      ? { label: company.hiddenTag.label, quality: company.hiddenTag.quality ?? "normal" }
+      : null;
+  if (!t) {
+    return { parts: [], hidden };
+  }
+  const parts = [
+    { label: t.salary.label, quality: t.salary.quality },
+    { label: t.treatment.label, quality: t.treatment.quality },
+    ...t.reputation.map((r) => ({ label: r.label, quality: r.quality })),
+  ];
+  return { parts, hidden };
+}
+
+/** 从「年薪X万-…」文案解析下限（万）；含展示后缀时只取第一段 */
+export function salaryLowWanFromTierLabel(label) {
+  const head = (label ?? "").split(" · ")[0].trim();
+  const m = head.match(/年薪([\d.]+)万/);
+  return m ? parseFloat(m[1]) : 0;
+}
+
+function baseStarsFromSalaryQuality(quality) {
+  if (quality === "bad") return 1;
+  if (quality === "good") return 3;
+  return 2;
+}
+
+function baseStarsFromLowWan(lowWan) {
+  if (lowWan < 12) return 1;
+  if (lowWan < 18) return 2;
+  return 3;
+}
+
+/**
+ * 结算页公司评分：年薪档 1–3 星（差/一般/高），年薪以外每个绿 tag +1、红 tag -1；传销 Offer 固定 0 星。
+ * stars 可为负；结算 UI 用红色星显示负分的绝对值。
+ * @returns {{ stars: number, colorful: boolean, isPyramid: boolean }}
+ */
+export function computeEndOfferStarRating(offer) {
+  if (!offer) return { stars: 0, colorful: false, isPyramid: false };
+  if (offer.isPyramidTrap) {
+    return { stars: 0, colorful: false, isPyramid: true };
+  }
+  const st = offer.settlementTags;
+  let base = 2;
+  if (st?.parts?.length) {
+    base = baseStarsFromSalaryQuality(st.parts[0].quality ?? "normal");
+  } else {
+    const low = salaryLowWanFromTierLabel(offer.salaryTier);
+    base = low > 0 ? baseStarsFromLowWan(low) : 2;
+  }
+  let tagDelta = 0;
+  if (st?.parts?.length > 1) {
+    for (let i = 1; i < st.parts.length; i++) {
+      const q = st.parts[i].quality ?? "normal";
+      if (q === "good") tagDelta += 1;
+      else if (q === "bad") tagDelta -= 1;
+    }
+  }
+  if (st?.hidden) {
+    const q = st.hidden.quality ?? "normal";
+    if (q === "good") tagDelta += 1;
+    else if (q === "bad") tagDelta -= 1;
+  }
+  const stars = base + tagDelta;
+  return { stars, colorful: stars >= 6, isPyramid: false };
+}
+
 /** 仅生成外壳；tags 在投递流程中由 match.materializeCompany 填充 */
 export function buildCompanyShell(index, seed) {
   const nameSeed = seed + index * 977;
@@ -245,9 +322,17 @@ export function buildCompanies() {
 export function buildCompaniesForApplySession(batchId) {
   const seed = Math.floor(Math.random() * 1e9);
   const n = 15 + Math.floor(Math.random() * 6);
-  return Array.from({ length: n }, (_, i) => {
+  const arr = Array.from({ length: n }, (_, i) => {
     const shell = buildCompanyShell(i, seed + i * 17);
     shell.id = `co_b${batchId}_i${i}`;
     return shell;
   });
+  /** 梗公司：每轮池子刷新时 2% 概率随机替换其中一席 */
+  if (Math.random() < 0.02 && NETA_COMPANY_PRESETS.length > 0 && arr.length > 0) {
+    const preset =
+      NETA_COMPANY_PRESETS[Math.floor(Math.random() * NETA_COMPANY_PRESETS.length)];
+    const slot = Math.floor(Math.random() * arr.length);
+    arr[slot] = createNetaShell(batchId, preset, slot, seed);
+  }
+  return arr;
 }

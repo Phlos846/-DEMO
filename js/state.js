@@ -55,8 +55,8 @@ export function createInitialState(opts = {}) {
   const state = {
     day: 1,
     maxDays: 30,
-    actionPoints: 3,
-    maxActionPointsPerDay: 3,
+    actionPoints: 4,
+    maxActionPointsPerDay: 4,
     stress: clamp(30 + (statFx.stress ?? 0), 0, stressMax),
     energy: clamp(80 + (statFx.energy ?? 0), 0, 100),
     godMode: !!opts.godMode,
