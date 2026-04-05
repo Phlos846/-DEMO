@@ -11,6 +11,50 @@ export function pickSeeded(arr, seed) {
   return arr[h % arr.length];
 }
 
+/** 投递页公司头像：按种子稳定选取 */
+const COMPANY_LOGO_EMOJIS = [
+  "🎯",
+  "🚀",
+  "💼",
+  "📊",
+  "🧩",
+  "⚡",
+  "🌟",
+  "🔷",
+  "🛠",
+  "📈",
+  "🦾",
+  "🧠",
+  "💡",
+  "🌐",
+  "🔔",
+  "📱",
+  "🎮",
+  "🏭",
+  "🧪",
+  "✨",
+  "🔮",
+  "🎪",
+  "🗺",
+  "⛵",
+  "🦋",
+  "🍀",
+  "🔑",
+  "🎖",
+  "📦",
+  "🪐",
+  "🌿",
+  "🔭",
+  "🧿",
+  "🎲",
+  "🪄",
+  "🛰",
+];
+
+export function pickCompanyLogo(seed) {
+  return pickSeeded(COMPANY_LOGO_EMOJIS, seed + 901);
+}
+
 const NAME_A = [
   "星澜",
   "云杉",
@@ -183,10 +227,12 @@ export function getFlatTagLabels(company) {
 
 /** 仅生成外壳；tags 在投递流程中由 match.materializeCompany 填充 */
 export function buildCompanyShell(index, seed) {
+  const nameSeed = seed + index * 977;
   return {
     id: `co_${index}`,
-    name: generateCompanyName(seed + index * 977),
+    name: generateCompanyName(nameSeed),
     baseSeed: seed + index * 7919,
+    logo: pickCompanyLogo(nameSeed),
   };
 }
 

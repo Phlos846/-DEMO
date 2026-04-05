@@ -55,7 +55,9 @@ export function canReveal(state) {
   if (!co || !state.applySession) return false;
   if (!co.hasHidden || !co.hiddenTag) return false;
   if (state.applySession.currentRevealed) return false;
-  return state.energy >= talentRevealEnergyCost(state);
+  const cost = talentRevealEnergyCost(state);
+  if (state.energy < 15) return false;
+  return state.energy >= cost;
 }
 
 /** 「侧面打听」：消耗精力揭示隐藏标签 */
@@ -74,7 +76,7 @@ export function submitCurrentCompany(state) {
   const co = getCurrentCompany(state);
   if (!co || s.submitted >= s.target) return null;
 
-  const eCost = Math.max(2, 5 - talentApplyEnergyDiscount(state));
+  const eCost = Math.max(2, 4 - talentApplyEnergyDiscount(state));
   const mx = state.energyMax ?? 100;
   applyEnergyDelta(state, -eCost);
   applyStressDelta(state, 2, "action");

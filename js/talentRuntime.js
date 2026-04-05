@@ -8,6 +8,10 @@ function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
 }
 
+function resumeCapFor(state) {
+  return state?.resumeQualityMax ?? 120;
+}
+
 const EDU_HIGH = [
   { id: "edu_qingbei", name: "清北", tier: 6 },
   { id: "edu_985", name: "985", tier: 5 },
@@ -31,7 +35,7 @@ export function patchTraitsForGenius(rolled) {
 /** 合并词条后再叠加大幅属性（天才） */
 export function applyGeniusStatBonus(state) {
   if (!hasTalent(state, "genius")) return;
-  state.resumeQuality = clamp(state.resumeQuality + 14, 0, 100);
+  state.resumeQuality = clamp(state.resumeQuality + 14, 0, resumeCapFor(state));
   state.hiddenResume = clamp(state.hiddenResume + 16, 0, 100);
   state.hiddenInterview = clamp(state.hiddenInterview + 14, 0, 100);
   state.stress = clamp(state.stress - 5, 0, 100);
@@ -39,7 +43,7 @@ export function applyGeniusStatBonus(state) {
 
 export function applyNormalHumanBonus(state) {
   if (!hasTalent(state, "normal_human")) return;
-  state.resumeQuality = clamp(state.resumeQuality + 3, 0, 100);
+  state.resumeQuality = clamp(state.resumeQuality + 3, 0, resumeCapFor(state));
   state.hiddenResume = clamp(state.hiddenResume + 2, 0, 100);
   state.hiddenInterview = clamp(state.hiddenInterview + 2, 0, 100);
   state.stress = clamp(state.stress - 2, 0, 100);
@@ -121,6 +125,10 @@ export function applyStressDelta(state, delta, source = "other") {
     d *= 1.32;
   }
 
+  if (d > 0) {
+    d *= 1.2;
+  }
+
   state.stress = clamp(state.stress + d, 0, 100);
 
   if (hasTalent(state, "pressure_king") && !state.pressureKingTriggered && state.stress >= 79) {
@@ -164,7 +172,8 @@ export function applyDailyMoneyTick(state) {
   const base = state.baseLivingCost ?? 100;
   let cost = base * livingCostMultiplier(state);
   if (hasTalent(state, "coffee_life")) cost += 10;
-  cost = Math.round(cost);
+  const dayJitter = 0.9 + Math.random() * 0.2;
+  cost = Math.round(cost * dayJitter);
   applyMoneyDelta(state, -cost);
 
   if (hasTalent(state, "golden_touch")) {
@@ -227,9 +236,9 @@ export function applyPassiveDayRecovery(state) {
 
 /** 侧面打听精力消耗 */
 export function talentRevealEnergyCost(state) {
-  let c = 15;
-  if (hasTalent(state, "maimai_lurker")) c -= 3;
-  return Math.max(8, c);
+  let c = 9;
+  if (hasTalent(state, "maimai_lurker")) c -= 2;
+  return Math.max(5, c);
 }
 
 /** 学习额外收益 */
@@ -248,29 +257,29 @@ export function talentStudyBonus(state) {
   return { hiddenResume: hr, hiddenInterview: hi, resumeQuality: rq };
 }
 
-/** 简历/面试概率加值 */
+/** 简历/面试概率加值（乘在公式里 1+r / 1+i；数值约为原 1.3×） */
 export function talentPassBonus(state) {
   let r = 0;
   let i = 0;
   if (hasTalent(state, "bluff")) {
-    r += 0.035;
-    i += 0.04;
+    r += 0.0455;
+    i += 0.052;
   }
   if (hasTalent(state, "cattle")) {
-    r += 0.02;
-    i += 0.025;
+    r += 0.026;
+    i += 0.0325;
   }
   if (hasTalent(state, "parttime")) {
-    r += 0.015;
-    i += 0.012;
+    r += 0.0195;
+    i += 0.0156;
   }
   if (hasTalent(state, "normal_human")) {
-    r += 0.01;
-    i += 0.01;
+    r += 0.013;
+    i += 0.013;
   }
   if (hasTalent(state, "offer_hunter")) {
-    r += 0.012;
-    i -= 0.006;
+    r += 0.0156;
+    i -= 0.0078;
   }
   return { resume: r, interview: i };
 }
@@ -289,6 +298,7 @@ export function tryNepotismOffer(state) {
   const offer = {
     companyId: "nepotism",
     name: "关系内推·待定岗",
+    logo: "🤝",
     tags: ["内推通道", "年薪18万-22万档", "流程简化"],
     salaryTier: "年薪18万-22万（关系加成）",
     industry: "other",

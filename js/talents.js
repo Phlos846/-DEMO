@@ -1,18 +1,19 @@
 /**
  * 玩家天赋：每局 1–2 个；稀有度配色 + 权重
- * 稀有度先验：白 40% / 蓝 30% / 紫 22% / 金 3% / 黑 5%
+ * 稀有度先验（权重合计 100）：金 4.5% / 紫 22% / 蓝 30% / 白 38.5% / 黑 5%
+ * 金为原 1.5×；蓝紫不变；白略降。
  */
 
 function rnd() {
   return Math.random();
 }
 
-/** 稀有度 → 先验权重（合计 100） */
+/** 稀有度 → 先验权重（合计 100；金可用小数以保持 1.5×） */
 export const RARITY_WEIGHT = {
-  gold: 3,
+  gold: 4.5,
   purple: 22,
   blue: 30,
-  white: 40,
+  white: 38.5,
   black: 5,
 };
 
@@ -105,7 +106,7 @@ export const TALENTS = [
     name: "脉脉潜水员",
     rarity: "purple",
     pickWeight: 9,
-    desc: "侧面打听消耗精力 -3（最低仍受 0 下限约束）。",
+    desc: "侧面打听消耗精力额外 -2（不低于全局下限）。",
   },
   {
     id: "resume_tailor",

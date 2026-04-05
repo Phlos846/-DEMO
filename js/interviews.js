@@ -1,6 +1,9 @@
 import { addLog } from "./state.js";
 import { expectedInterviewPass, updateJobSearchRating } from "./match.js";
 import { hasTalent } from "./talents.js";
+import { applyStressDelta } from "./talentRuntime.js";
+
+const MAX_INTERVIEWS_PER_NATURAL_DAY = 2;
 
 function roll() {
   return Math.random();
@@ -32,12 +35,18 @@ export function processPendingResumeFeedback(state) {
   return banner;
 }
 
-/** 每个自然日开始时：面试强行消耗行动点 */
+/** 每个自然日开始时：面试强行消耗行动点；同一自然日最多处理 2 场，其余留在队列顺延 */
 export function processInterviewsAtDayStart(state) {
   const messages = [];
-  while (state.interviewQueue.length > 0 && state.actionPoints > 0) {
+  let doneToday = 0;
+  while (
+    state.interviewQueue.length > 0 &&
+    state.actionPoints > 0 &&
+    doneToday < MAX_INTERVIEWS_PER_NATURAL_DAY
+  ) {
     const job = state.interviewQueue.shift();
     state.actionPoints -= 1;
+    doneToday += 1;
     const company = job.company;
     const hiddenRevealed = !!job.resumePassContext?.hiddenRevealed;
     const expectedP = expectedInterviewPass(state, company, hiddenRevealed);
@@ -45,6 +54,7 @@ export function processInterviewsAtDayStart(state) {
     updateJobSearchRating(state, expectedP, pass ? 1 : 0);
 
     if (pass) {
+      applyStressDelta(state, -9, "interview_pass");
       const salaryTier =
         company.tags?.salary?.label ??
         company.visibleTags?.find((t) => t.includes("薪") || t.includes("年薪")) ??
@@ -52,6 +62,7 @@ export function processInterviewsAtDayStart(state) {
       const offer = {
         companyId: company.id,
         name: company.name,
+        logo: company.logo ?? "🏢",
         tags: [...(company.visibleTags ?? [])],
         salaryTier,
         industry: company.industry ?? "other",
@@ -68,9 +79,20 @@ export function processInterviewsAtDayStart(state) {
         break;
       }
     } else {
+      applyStressDelta(state, 11, "interview_fail");
       messages.push(`面试未通过：${company.name}。`);
       addLog(state, `第 ${state.day} 天：面试 ${company.name} 未通过。`);
     }
+  }
+  if (
+    doneToday >= MAX_INTERVIEWS_PER_NATURAL_DAY &&
+    state.interviewQueue.length > 0 &&
+    state.actionPoints > 0
+  ) {
+    addLog(
+      state,
+      `第 ${state.day} 天：今日最多安排 ${MAX_INTERVIEWS_PER_NATURAL_DAY} 场面试，其余 ${state.interviewQueue.length} 场已顺延至后续自然日。`,
+    );
   }
   return messages;
 }

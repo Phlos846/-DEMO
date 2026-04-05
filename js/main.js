@@ -1,5 +1,5 @@
 import { createInitialState, addLog } from "./state.js";
-import { formatRolledTraitsLog, rollAllTraits } from "./traits.js";
+import { formatRolledTraitsLog, rollAllTraits, educationTagClass } from "./traits.js";
 import { formatTalentsLog, RARITY_CLASS } from "./talents.js";
 import {
   rollExeGlitchForDay,
@@ -12,7 +12,7 @@ import {
   talentRevealEnergyCost,
   checkInstantFail,
 } from "./talentRuntime.js";
-import { applyDailyAction } from "./actions.js";
+import { applyDailyAction, minCashForFunAction } from "./actions.js";
 import { planEventsForCurrentDay, resolveEvent } from "./events.js";
 import {
   startApplySession,
@@ -25,7 +25,7 @@ import {
   endApplySession,
 } from "./applications.js";
 import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js";
-import { computeEnding, endingSummaryLines } from "./endings.js";
+import { computeEnding, endingSummaryLines, getEndingEmoji, getBestOffer } from "./endings.js";
 
 let state = null;
 let pendingEvent = null;
@@ -48,7 +48,7 @@ function renderStartTraitPreview() {
   const extras = t.extraDegrees.length ? `（${t.extraDegrees.map((e) => e.name).join("、")}）` : "";
   const other = t.other.length ? t.other.map((o) => o.name).join("、") : "无";
   el.innerHTML = `
-    <p><strong>学历</strong>：${t.education.name}${extras}</p>
+    <p><strong>学历</strong>：<span class="${educationTagClass(t.education.id)}">${t.education.name}</span>${extras}</p>
     <p><strong>专业</strong>：${t.major.name}</p>
     <p><strong>性格</strong>：${t.personalities.map((p) => p.name).join("、")}</p>
     <p><strong>其他</strong>：${other}</p>
@@ -71,7 +71,7 @@ function renderTraitPanel() {
     .join("");
   el.innerHTML = `
     <h2>本局词条</h2>
-    <p><strong>学历</strong>：${t.education.name}${extras}</p>
+    <p><strong>学历</strong>：<span class="${educationTagClass(t.education.id)}">${t.education.name}</span>${extras}</p>
     <p><strong>专业</strong>：${t.major.name}</p>
     <p><strong>性格</strong>：${t.personalities.map((p) => p.name).join("、")}</p>
     <p><strong>其他</strong>：${other}</p>
@@ -138,11 +138,13 @@ function refreshMain() {
   if (dw) dw.classList.toggle("hidden", debt <= 0);
   const rd = $("res-debt");
   if (rd) rd.textContent = String(Math.round(debt));
-  $("res-stress").textContent = String(Math.round(state.stress));
+  $("res-stress").textContent = Number(state.stress ?? 0).toFixed(1);
   $("res-energy").textContent = String(Math.round(state.energy));
   const em = $("res-energy-max");
   if (em) em.textContent = String(state.energyMax ?? 100);
   $("res-resume").textContent = String(Math.round(state.resumeQuality));
+  const rmax = $("res-resume-max");
+  if (rmax) rmax.textContent = String(state.resumeQualityMax ?? 120);
   const mr = $("match-rating");
   if (mr) mr.textContent = String(Math.round(state.jobSearchRating ?? 1500));
   $("hid-resume").textContent = String(Math.round(state.hiddenResume));
@@ -177,7 +179,8 @@ function refreshMain() {
       const indOk =
         buff && buff.untilDay >= state.day && o.industry && buff.industry === o.industry;
       const wind = indOk ? " · 行业风向+20%展示" : "";
-      li.textContent = `${o.name} · ${o.salaryTier}${bump}${wind} · ${o.tags.join(" · ")}`;
+      const lg = o.logo ?? "💼";
+      li.textContent = `${lg} ${o.name} · ${o.salaryTier}${bump}${wind} · ${o.tags.join(" · ")}`;
       offers.appendChild(li);
     }
   }
@@ -186,8 +189,8 @@ function refreshMain() {
   document.querySelectorAll(".action-btn").forEach((btn) => {
     const act = btn.dataset.action;
     let dis = !canAct;
-    if (act === "apply") dis = dis || state.energy < 12;
-    if (act === "fun") dis = dis || (state.money ?? 0) < 55;
+    if (act === "apply") dis = dis || state.energy < 10;
+    if (act === "fun") dis = dis || (state.money ?? 0) < minCashForFunAction(state);
     if (act === "path_startup") dis = dis || state.energy < 18;
     btn.disabled = dis;
   });
@@ -195,6 +198,15 @@ function refreshMain() {
 
   checkInstantFail(state);
   if (state.gameOver) tryGameOver();
+
+  const applyScr = $("screen-apply");
+  if (applyScr && !applyScr.classList.contains("hidden") && state.applySession) {
+    const ae = $("apply-energy");
+    const aem = $("apply-energy-max");
+    if (ae) ae.textContent = String(Math.round(state.energy));
+    if (aem) aem.textContent = String(state.energyMax ?? 100);
+    renderApplyScreen();
+  }
 }
 
 function runMorningPhase() {
@@ -223,6 +235,8 @@ function runMorningPhase() {
     pendingEvent = state.eventModalQueue.shift();
     $("event-title").textContent = pendingEvent.title;
     $("event-desc").textContent = pendingEvent.desc;
+    const emo = $("event-emoji");
+    if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
     $("modal-event").classList.remove("hidden");
   }
 }
@@ -242,6 +256,8 @@ function closeEventModal() {
     pendingEvent = state.eventModalQueue.shift();
     $("event-title").textContent = pendingEvent.title;
     $("event-desc").textContent = pendingEvent.desc;
+    const emo = $("event-emoji");
+    if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
     $("modal-event").classList.remove("hidden");
     refreshMain();
     return;
@@ -262,13 +278,48 @@ function tryGameOver() {
     /* ignore */
   }
   const end = computeEnding(state);
+  const endEmoji = $("end-emoji");
+  if (endEmoji) endEmoji.textContent = getEndingEmoji(end.id);
   $("end-title").textContent = end.title;
   $("end-body").textContent = end.body;
+
+  const bestOfferEl = $("end-best-offer");
+  const best = getBestOffer(state);
+  if (bestOfferEl) {
+    if (best) {
+      bestOfferEl.classList.remove("hidden");
+      const lg = $("end-best-logo");
+      if (lg) lg.textContent = best.logo ?? "💼";
+      const nm = $("end-best-name");
+      if (nm) nm.textContent = best.name ?? "";
+      const sal = $("end-best-salary");
+      if (sal) {
+        let line = best.salaryTier ?? "薪资面议";
+        if (best.salaryDisplayMultiplier && best.salaryDisplayMultiplier > 1) {
+          line += " · 虚张声势展示+20%";
+        }
+        const buff = state.industrySalaryBuff;
+        if (buff && buff.untilDay >= state.day && best.industry && buff.industry === best.industry) {
+          line += " · 行业风向+20%展示";
+        }
+        sal.textContent = line;
+      }
+      const tg = $("end-best-tags");
+      if (tg) tg.textContent = Array.isArray(best.tags) && best.tags.length ? best.tags.join(" · ") : "（无标签展示）";
+    } else {
+      bestOfferEl.classList.add("hidden");
+    }
+  }
+
   const ul = $("end-stats");
   ul.innerHTML = "";
   for (const line of endingSummaryLines(state)) {
     const li = document.createElement("li");
-    li.textContent = line;
+    if (line && typeof line === "object" && "html" in line) {
+      li.innerHTML = line.html;
+    } else {
+      li.textContent = line;
+    }
     ul.appendChild(li);
   }
   showScreen("screen-end");
@@ -297,7 +348,7 @@ function bindMainActions() {
       if (!state || state.gameOver || state.actionPoints <= 0) return;
 
       if (action === "apply") {
-        if (state.energy < 12) return;
+        if (state.energy < 10) return;
         const r = startApplySession(state);
         if (!r.ok) {
           alert(r.reason);
@@ -337,7 +388,12 @@ function renderApplyScreen() {
   const s = state.applySession;
   if (!s) return;
   const co = getCurrentCompany(state);
+  const ae = $("apply-energy");
+  const aem = $("apply-energy-max");
+  if (ae) ae.textContent = String(Math.round(state.energy));
+  if (aem) aem.textContent = String(state.energyMax ?? 100);
   $("apply-count").textContent = String(s.submitted);
+  const posLine = $("apply-position-line");
   const view = $("company-view");
   const btnApply = $("btn-apply-co");
   const btnNext = $("btn-next-co");
@@ -345,6 +401,7 @@ function renderApplyScreen() {
   const btnSide = $("btn-side-ask");
 
   if (!co || s.submitted >= s.target || applySessionComplete(state)) {
+    if (posLine) posLine.classList.add("hidden");
     view.innerHTML =
       s.submitted >= s.target
         ? "<p><strong>本轮已投递满 10 份简历。</strong></p>"
@@ -354,6 +411,15 @@ function renderApplyScreen() {
     btnSide.classList.add("hidden");
     btnLeave.classList.remove("hidden");
     return;
+  }
+
+  if (posLine) {
+    posLine.classList.remove("hidden");
+    const pool = s.order?.length ?? 20;
+    const cur = $("apply-cur-idx");
+    const tot = $("apply-pool-total");
+    if (cur) cur.textContent = String(s.index + 1);
+    if (tot) tot.textContent = String(pool);
   }
 
   btnApply.classList.remove("hidden");
@@ -377,8 +443,12 @@ function renderApplyScreen() {
         : `<p class="muted">传闻该公司另有隐情（可使用<strong>侧面打听</strong>消耗精力获知）。</p>`
       : `<p class="muted">暂无需要侧面打听的信息。</p>`;
 
+  const logo = co.logo ?? "🏢";
   view.innerHTML = `
-    <h3>${co.name}</h3>
+    <div class="company-header">
+      <span class="company-logo" aria-hidden="true">${logo}</span>
+      <h3 class="company-title">${co.name}</h3>
+    </div>
     <div class="tag-block"><span class="tag-label">薪资</span> <span class="tag">${sal.label}<span class="tag-quality tag-q-${sal.quality}">${qualityLabel(sal.quality)}</span></span></div>
     <div class="tag-block"><span class="tag-label">待遇</span> <span class="tag">${tr.label}<span class="tag-quality tag-q-${tr.quality}">${qualityLabel(tr.quality)}</span></span></div>
     <div class="tag-block"><span class="tag-label">社会风评</span> ${reps}</div>
@@ -390,7 +460,13 @@ function renderApplyScreen() {
     btnSide.classList.remove("hidden");
     const c = talentRevealEnergyCost(state);
     btnSide.textContent = `侧面打听（消耗${c}精力）`;
+    const lowE = state.energy < 15;
     btnSide.disabled = !canReveal(state);
+    if (lowE) {
+      btnSide.title = "精力低于 15 时无法侧面打听";
+    } else {
+      btnSide.removeAttribute("title");
+    }
   } else {
     btnSide.classList.add("hidden");
   }
@@ -406,8 +482,7 @@ function bindApplyScreen() {
   });
 
   $("btn-apply-co").addEventListener("click", () => {
-    const msg = submitCurrentCompany(state);
-    if (msg) alert(msg);
+    submitCurrentCompany(state);
     if (state.applySession && (state.applySession.submitted >= 10 || applySessionComplete(state))) {
       endApplySession(state);
       showScreen("screen-main");
@@ -419,10 +494,9 @@ function bindApplyScreen() {
   });
 
   $("btn-next-co").addEventListener("click", () => {
-    const msg = skipCurrentCompany(state);
-    if (msg) alert(msg);
+    skipCurrentCompany(state);
     if (applySessionComplete(state) && state.applySession.submitted < 10) {
-      alert("已无法凑满 10 份投递，本轮结束。");
+      addLog(state, `第 ${state.day} 天：已无法凑满 10 份投递，本轮结束。`);
       endApplySession(state);
       showScreen("screen-main");
       refreshMain();
@@ -435,6 +509,7 @@ function bindApplyScreen() {
       return;
     }
     renderApplyScreen();
+    refreshMain();
   });
 
   $("btn-leave-apply").addEventListener("click", () => {

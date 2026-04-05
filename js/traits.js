@@ -29,6 +29,14 @@ export const EDUCATION = [
   { id: "edu_dazhuan", name: "大专", weight: 15, tier: 0 },
 ];
 
+/** 学历名称展示用 class：清北金、海归/985 紫、211 蓝、其余白 */
+export function educationTagClass(eduId) {
+  if (eduId === "edu_qingbei") return "edu-tag edu-tag-qingbei";
+  if (eduId === "edu_985" || eduId === "edu_haigui") return "edu-tag edu-tag-haigui-985";
+  if (eduId === "edu_211") return "edu-tag edu-tag-211";
+  return "edu-tag edu-tag-default";
+}
+
 /** 普本及以上可附带：研究生 / 博士 / 双学位（独立判定） */
 const ELIGIBLE_EXTRA = new Set(["edu_puben", "edu_211", "edu_985", "edu_qingbei", "edu_haigui"]);
 
@@ -77,11 +85,11 @@ export const OTHER_TRAITS = [
 
 function educationStaticEffects(eduId) {
   const map = {
-    edu_qingbei: { resumeQuality: 25, hiddenResume: 18, hiddenInterview: 15, salaryTierBonus: 3, stress: -5 },
-    edu_985: { resumeQuality: 15, hiddenResume: 12, hiddenInterview: 10, salaryTierBonus: 2, stress: -3 },
-    edu_haigui: { resumeQuality: 12, hiddenResume: 10, hiddenInterview: 12, salaryTierBonus: 2, stress: -2 },
-    edu_211: { resumeQuality: 8, hiddenResume: 6, hiddenInterview: 6, salaryTierBonus: 1, stress: 0 },
-    edu_puben: { resumeQuality: 2, hiddenResume: 2, hiddenInterview: 2, salaryTierBonus: 0, stress: 2 },
+    edu_qingbei: { resumeQuality: 31, hiddenResume: 25, hiddenInterview: 21, salaryTierBonus: 5, stress: -9 },
+    edu_985: { resumeQuality: 12, hiddenResume: 12, hiddenInterview: 10, salaryTierBonus: 2, stress: -3 },
+    edu_haigui: { resumeQuality: 9, hiddenResume: 10, hiddenInterview: 12, salaryTierBonus: 2, stress: -2 },
+    edu_211: { resumeQuality: 5, hiddenResume: 6, hiddenInterview: 6, salaryTierBonus: 1, stress: 0 },
+    edu_puben: { resumeQuality: 0, hiddenResume: 2, hiddenInterview: 2, salaryTierBonus: 0, stress: 2 },
     edu_yeji: { resumeQuality: -6, hiddenResume: -6, hiddenInterview: -5, salaryTierBonus: -1, stress: 6 },
     edu_dazhuan: { resumeQuality: -12, hiddenResume: -10, hiddenInterview: -8, salaryTierBonus: -2, stress: 8 },
   };

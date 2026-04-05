@@ -86,6 +86,25 @@ body {
   font-size: 0.9rem;
 }
 
+/* 学历 tag 颜色 */
+.edu-tag {
+  font-weight: 600;
+}
+.edu-tag-qingbei {
+  color: #e8c547;
+  text-shadow: 0 0 12px rgba(232, 197, 71, 0.25);
+}
+.edu-tag-haigui-985 {
+  color: #b794f6;
+}
+.edu-tag-211 {
+  color: #63b3ed;
+}
+.edu-tag-default {
+  color: #f0f4f8;
+  font-weight: 500;
+}
+
 .boot-fail {
   color: #f0a8a8;
   border: 1px solid var(--danger);
@@ -280,9 +299,37 @@ button.danger {
   color: var(--muted);
 }
 
+.apply-position-line {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
+.apply-position-line strong {
+  color: var(--text);
+}
+
 .company-view {
   min-height: 120px;
   margin: 1rem 0;
+}
+
+.company-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.company-logo {
+  font-size: 1.75rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.company-view .company-title {
+  margin: 0;
+  font-size: 1.15rem;
 }
 
 .tag-row {
@@ -409,7 +456,90 @@ button.danger {
   width: 100%;
 }
 
+.event-modal-card {
+  text-align: center;
+}
+
+.event-modal-emoji {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 0.35rem;
+  user-select: none;
+}
+
+.event-modal-card #event-title {
+  margin-top: 0;
+}
+
+.event-modal-card #event-desc {
+  text-align: left;
+}
+
+.end-card {
+  text-align: center;
+}
+
+.end-card-emoji {
+  font-size: 3rem;
+  line-height: 1;
+  margin-bottom: 0.35rem;
+  user-select: none;
+}
+
+.end-card #end-body,
 .end-card ul {
   text-align: left;
   color: var(--muted);
+}
+
+.end-card #end-body {
+  color: var(--text);
+}
+
+.end-best-offer {
+  margin: 1rem 0;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.end-best-offer-title {
+  margin: 0 0 0.6rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.end-best-offer-inner {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-start;
+}
+
+.end-best-logo {
+  font-size: 2.35rem;
+  line-height: 1;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.end-best-name {
+  margin: 0 0 0.25rem;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.end-best-salary {
+  margin: 0 0 0.35rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.end-best-tags {
+  margin: 0;
+  font-size: 0.86rem;
+  line-height: 1.45;
 }

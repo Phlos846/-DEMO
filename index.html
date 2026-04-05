@@ -38,11 +38,11 @@
           <span id="res-debt-wrap" class="muted hidden"> · 负债 <span id="res-debt">0</span></span>
         </div>
         <div class="res"><span class="label">行动点</span><span id="res-ap" class="value">3</span></div>
-        <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30</span> / 100</div>
+        <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30.0</span> / 100</div>
         <div class="res"><span class="label">精力值</span><span id="res-energy" class="value">80</span> / <span id="res-energy-max">100</span></div>
-        <div class="res"><span class="label">简历完整度</span><span id="res-resume" class="value">50</span> / 100</div>
+        <div class="res"><span class="label">简历完整度</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
       </div>
-      <div class="hidden-stats card subtle">
+      <div class="hidden-stats card subtle hidden">
         <h3>隐藏加成（调试可见）</h3>
         <p>匹配分 <span id="match-rating">1500</span> · 简历过筛倾向 <span id="hid-resume">50</span> · 面试发挥 <span id="hid-interview">45</span></p>
       </div>
@@ -77,13 +77,15 @@
     <section id="screen-apply" class="screen hidden">
       <div class="card apply-card">
         <h2>投递简历</h2>
+        <p class="apply-energy-line">当前精力：<span id="apply-energy">80</span> / <span id="apply-energy-max">100</span>（实时）</p>
         <p>每轮<strong>重新随机生成 20 家</strong>公司，本轮需投递 <strong>10</strong> 份；当前已投 <span id="apply-count">0</span> / 10</p>
-        <p class="hint">投递后约 2–3 个工作日才在日志里收到简历过筛结果；「查看下一家」即跳过且不可再投。</p>
+        <p id="apply-position-line" class="apply-position-line">当前为本轮 <strong><span id="apply-pool-total">20</span></strong> 家公司中的第 <span id="apply-cur-idx">1</span> 家（浏览顺序）</p>
+        <p class="hint">投递后约 2–3 个工作日才在日志里收到简历过筛结果；「换一个」即跳过且不可再投。</p>
         <div id="company-view" class="company-view"></div>
         <div class="apply-actions">
           <button type="button" id="btn-apply-co" class="primary">投递该公司</button>
-          <button type="button" id="btn-next-co" class="secondary">查看下一家</button>
-          <button type="button" id="btn-side-ask" class="secondary">侧面打听（消耗15精力）</button>
+          <button type="button" id="btn-next-co" class="secondary">换一个</button>
+          <button type="button" id="btn-side-ask" class="secondary">侧面打听</button>
         </div>
         <button type="button" id="btn-leave-apply" class="secondary hidden">返回主界面</button>
       </div>
@@ -91,15 +93,28 @@
 
     <section id="screen-end" class="screen hidden">
       <div class="card end-card">
+        <div id="end-emoji" class="end-card-emoji" aria-hidden="true">📋</div>
         <h2 id="end-title">结局</h2>
         <p id="end-body"></p>
+        <div id="end-best-offer" class="end-best-offer hidden">
+          <h3 class="end-best-offer-title">本局最佳 Offer</h3>
+          <div class="end-best-offer-inner">
+            <span id="end-best-logo" class="end-best-logo" aria-hidden="true">💼</span>
+            <div class="end-best-offer-main">
+              <p id="end-best-name" class="end-best-name"></p>
+              <p id="end-best-salary" class="end-best-salary"></p>
+              <p id="end-best-tags" class="end-best-tags muted"></p>
+            </div>
+          </div>
+        </div>
         <ul id="end-stats"></ul>
         <button type="button" id="btn-restart" class="primary">再来一局</button>
       </div>
     </section>
 
-    <div id="modal-event" class="modal hidden" role="dialog">
-      <div class="modal-inner card">
+    <div id="modal-event" class="modal hidden" role="dialog" aria-labelledby="event-title">
+      <div class="modal-inner card event-modal-card">
+        <div id="event-emoji" class="event-modal-emoji" aria-hidden="true">📋</div>
         <h2 id="event-title">随机事件</h2>
         <p id="event-desc"></p>
         <button type="button" id="btn-event-ok" class="primary">确定</button>
@@ -116,3 +131,4 @@
   </script>
 </body>
 </html>
+<a href="http://s05.flagcounter.com/more/dVX"><img src="https://s05.flagcounter.com/count2/dVX/bg_FFFFFF/txt_000000/border_CCCCCC/columns_2/maxflags_4/viewers_0/labels_0/pageviews_0/flags_0/percent_0/" alt="Flag Counter" border="0"></a>

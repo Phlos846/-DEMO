@@ -11,8 +11,18 @@ import {
   applyDailyMoneyTick,
 } from "./talentRuntime.js";
 
+export const RESUME_QUALITY_MAX = 120;
+
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
+}
+
+export function resumeQualityCap(state) {
+  return state?.resumeQualityMax ?? RESUME_QUALITY_MAX;
+}
+
+export function clampResumeToCap(state, v) {
+  return clamp(v, 0, resumeQualityCap(state));
 }
 
 /**
@@ -51,7 +61,8 @@ export function createInitialState(opts = {}) {
     studyCount: 0,
     vitalFailReason: null,
     energyMax: playerTalents.some((t) => t.id === "cattle") ? 118 : 100,
-    resumeQuality: clamp(50 + (statFx.resumeQuality ?? 0), 0, 100),
+    resumeQualityMax: RESUME_QUALITY_MAX,
+    resumeQuality: clamp(45 + (statFx.resumeQuality ?? 0), 0, RESUME_QUALITY_MAX),
     hiddenResume: clamp(50 + (statFx.hiddenResume ?? 0), 0, 100),
     hiddenInterview: clamp(45 + (statFx.hiddenInterview ?? 0), 0, 100),
     salaryTierBonus,

@@ -1,12 +1,13 @@
 /** 每日行动基础数值；性格增量由 state.personalityActionMods 叠加 */
 
 import { applyStressDelta, talentStudyBonus, applyEnergyDelta, applyMoneyDelta } from "./talentRuntime.js";
+import { clampResumeToCap } from "./state.js";
 
 export const ACTION_COSTS = {
-  rest: { stress: -12, energy: 22 },
-  fun: { stress: -18, energy: -15, money: -55 },
+  rest: { stress: -8, energy: 22 },
+  fun: { stress: -28, energy: -11, money: -55 },
   study: { energy: -15, stress: 3, hiddenResume: 2, hiddenInterview: 1, resumeQuality: 3 },
-  apply: { energy: -10, stress: 4 },
+  apply: { energy: -8, stress: 4 },
   path_startup: { energy: -16, stress: 4, resumeQuality: 2 },
 };
 
@@ -24,6 +25,14 @@ function mergeActionDeltas(base, extra) {
     }
   }
   return out;
+}
+
+/** 娱乐扣钱前的理论下限（±10% 浮动），用于主界面按钮是否可点 */
+export function minCashForFunAction(state) {
+  const c = mergeActionDeltas(ACTION_COSTS.fun, state.personalityActionMods?.fun ?? {});
+  const m = c.money ?? 0;
+  if (m >= 0) return 0;
+  return Math.ceil(Math.abs(m) * 0.9 - 1e-9);
 }
 
 function energyCap(state) {
@@ -51,16 +60,25 @@ export function applyDailyAction(state, actionId) {
     applyStressDelta(state, c.stress ?? 0, "action");
     applyEnergyDelta(state, c.energy ?? 0);
     if (c.money != null && c.money !== 0) {
-      applyMoneyDelta(state, c.money);
+      let moneyDelta = c.money;
+      if (moneyDelta < 0) {
+        const factor = 0.9 + Math.random() * 0.2;
+        moneyDelta = Math.round(moneyDelta * factor);
+      }
+      applyMoneyDelta(state, moneyDelta);
     }
     return "娱乐：吃喝玩乐都要花钱，压力降了，钱包也瘦了。";
   }
   if (actionId === "study") {
     const tb = talentStudyBonus(state);
     applyEnergyDelta(state, c.energy ?? 0);
-    state.hiddenResume = clamp(state.hiddenResume + (c.hiddenResume ?? 0) + tb.hiddenResume, 0, 100);
-    state.hiddenInterview = clamp(state.hiddenInterview + (c.hiddenInterview ?? 0) + tb.hiddenInterview, 0, 100);
-    state.resumeQuality = clamp(state.resumeQuality + (c.resumeQuality ?? 0) + tb.resumeQuality, 0, 100);
+    const studyScale = 0.9;
+    const hrGain = Math.round(((c.hiddenResume ?? 0) + tb.hiddenResume) * studyScale);
+    const hiGain = Math.round(((c.hiddenInterview ?? 0) + tb.hiddenInterview) * studyScale);
+    const rqGain = Math.round(((c.resumeQuality ?? 0) + tb.resumeQuality) * studyScale);
+    state.hiddenResume = clamp(state.hiddenResume + hrGain, 0, 100);
+    state.hiddenInterview = clamp(state.hiddenInterview + hiGain, 0, 100);
+    state.resumeQuality = clampResumeToCap(state, state.resumeQuality + rqGain);
     applyStressDelta(state, c.stress ?? 0, "action");
     state.studyCount = (state.studyCount ?? 0) + 1;
     return "学习：精力下降，简历完整度与隐藏通过率变化。";
@@ -73,7 +91,7 @@ export function applyDailyAction(state, actionId) {
   if (actionId === "path_startup") {
     applyEnergyDelta(state, c.energy ?? 0);
     applyStressDelta(state, c.stress ?? 0, "action");
-    state.resumeQuality = clamp(state.resumeQuality + (c.resumeQuality ?? 0), 0, 100);
+    state.resumeQuality = clampResumeToCap(state, state.resumeQuality + (c.resumeQuality ?? 0));
     state.pathStartup = (state.pathStartup ?? 0) + 1;
     return "创业脑暴：画饼、写 BP、拉室友入股（口头）。";
   }

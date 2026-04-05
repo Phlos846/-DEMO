@@ -1,8 +1,56 @@
 /** 多结局：按优先级判定（特殊结局 > 就业质量线） */
 
 import { hasTalent } from "./talents.js";
+import { educationTagClass } from "./traits.js";
 
-function sortOffersBySalary(offers, state) {
+function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 结算界面展示用 emoji，与 computeEnding 返回的 id 一一对应。
+ * 未列出的 id 时由 getEndingEmoji 回退。
+ */
+export const ENDING_EMOJI = {
+  vital_energy: "🪫",
+  vital_stress: "🤯",
+  lottery: "🎰",
+  pyramid: "🚨",
+  jiejie: "📺",
+  burnout: "😵",
+  postgrad_tv: "📚",
+  civil_tv: "🏛️",
+  grand_slam: "🏆",
+  underdog_snipe: "🎯",
+  premium_salary: "💎",
+  startup: "🚀",
+  startup_dream: "🌱",
+  inherit_family: "👔",
+  resume_tsunami: "🌊",
+  jobless_tired: "🛏️",
+  jobless_spring: "🌸",
+  hungry_ok: "🍚",
+  industry_jinx: "🕯️",
+  chill_hire: "😌",
+  stacked: "🏅",
+  popular: "⭐",
+  scholar_risk: "🧭",
+  balance: "⚖️",
+  normal_ok: "✅",
+  outsourcing_fate: "📦",
+  default_win: "🛟",
+};
+
+export function getEndingEmoji(endingId) {
+  if (!endingId) return "📋";
+  return ENDING_EMOJI[endingId] ?? "📋";
+}
+
+export function sortOffersBySalary(offers, state) {
   const bonus = state?.salaryTierBonus ?? 0;
   const rank = (s) => {
     let r = 0;
@@ -14,6 +62,12 @@ function sortOffersBySalary(offers, state) {
     return r + bonus * 0.15;
   };
   return [...offers].sort((a, b) => rank(b.salaryTier) - rank(a.salaryTier));
+}
+
+/** 结算页：按与结局相同的薪资排序取最优一份 */
+export function getBestOffer(state) {
+  if (!state?.offers?.length) return null;
+  return sortOffersBySalary(state.offers, state)[0];
 }
 
 /** 年薪区间下限（万），用于「饿不死」等 */
@@ -29,6 +83,22 @@ function hasPersonality(state, id) {
 
 function hasPyramidOffer(state) {
   return state.offers?.some((o) => o.isPyramidTrap);
+}
+
+/** 传销结局：须存在传销 Offer，且薪资排序下的「最佳 Offer」本身为传销（若最好的是正常高薪则不算） */
+function pyramidEndingApplies(state) {
+  if (!hasPyramidOffer(state)) return false;
+  const best = sortOffersBySalary(state.offers, state)[0];
+  return best?.isPyramidTrap === true;
+}
+
+/** 学历/三维纸面偏弱，易触发「捡漏」类结局 */
+function isWeakOnPaper(state) {
+  const eduTier = state.traits?.education?.tier ?? 3;
+  const cap = state.resumeQualityMax ?? 120;
+  const rqEquiv = cap > 0 ? (state.resumeQuality / cap) * 100 : 0;
+  const blend = (state.hiddenResume + rqEquiv + state.hiddenInterview) / 3;
+  return eduTier <= 3 || blend < 52;
 }
 
 function startupPivotDominates(state, n) {
@@ -75,7 +145,7 @@ export function computeEnding(state) {
     };
   }
 
-  if (hasPyramidOffer(state)) {
+  if (pyramidEndingApplies(state)) {
     return {
       id: "pyramid",
       title: "传销结局",
@@ -83,7 +153,7 @@ export function computeEnding(state) {
     };
   }
 
-  if (debt >= 550 && stress >= 52) {
+  if ((debt >= 350 && stress >= 52) || debt >= 600) {
     return {
       id: "jiejie",
       title: "戒戒你好",
@@ -121,6 +191,24 @@ export function computeEnding(state) {
       title: "大满贯",
       body: "五份以上 Offer 在手，群聊里你是被@最多的那个人。选择困难症也是一种凡尔赛。",
     };
+  }
+
+  if (n >= 1 && n < 5 && best) {
+    const lowW = offerSalaryLowWan(best);
+    if (isWeakOnPaper(state) && lowW >= 16) {
+      return {
+        id: "underdog_snipe",
+        title: "低水平捡漏 · 中高薪资",
+        body: "纸面并不拔尖，你却拿到一档明显偏高的薪资。群友说是狗屎运，你也知道里面有岗位错配、面试超常发挥和一点天时地利——先签下，再用表现证明物超所值。",
+      };
+    }
+    if (!isWeakOnPaper(state) && lowW >= 22) {
+      return {
+        id: "premium_salary",
+        title: "高薪工作",
+        body: "履历和面试撑住了档位，你拿到的是让同学都羡慕的薪资区间。Offer 在手，剩下的课题是别在入职前把自己熬干。",
+      };
+    }
   }
 
   if (startupPivotDominates(state, n)) {
@@ -252,13 +340,15 @@ export function computeEnding(state) {
 }
 
 export function endingSummaryLines(state) {
+  const eduId = state.traits?.education?.id ?? "";
   const edu = state.traits?.education?.name ?? "";
   const major = state.traits?.major?.name ?? "";
   const debt = state.debt ?? 0;
+  const eduMajorHtml = `学历 / 专业：<span class="${educationTagClass(eduId)}">${escapeHtml(edu)}</span> · ${escapeHtml(major)}`;
   const lines = [
-    `学历 / 专业：${edu} · ${major}`,
+    { html: eduMajorHtml },
     `现金结余：${Math.round(state.money ?? 0)}${debt > 0 ? ` · 负债：${Math.round(debt)}` : ""}`,
-    `压力：${Math.round(state.stress)} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)}`,
+    `压力：${Number(state.stress ?? 0).toFixed(1)} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
     `Offer 数量：${state.offers.length} · 累计投递：${state.appliedIds?.length ?? 0} 家`,
     `学习次数：${state.studyCount ?? 0} · 创业脑暴次数：${state.pathStartup ?? 0}`,
     `薪资档位加成：${state.salaryTierBonus ?? 0} · 隐藏倾向（简历/面试）：${Math.round(state.hiddenResume)} / ${Math.round(state.hiddenInterview)}`,
