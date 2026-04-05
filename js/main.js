@@ -1,5 +1,6 @@
 import { createInitialState, addLog } from "./state.js";
-import { formatRolledTraitsLog, rollAllTraits, educationTagClass } from "./traits.js";
+import { educationTagClass } from "./eduTags.js";
+import { formatRolledTraitsLog, rollAllTraits } from "./traits.js";
 import { formatTalentsLog, RARITY_CLASS } from "./talents.js";
 import {
   rollExeGlitchForDay,

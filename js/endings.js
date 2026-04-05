@@ -1,7 +1,7 @@
 /** 多结局：按优先级判定（特殊结局 > 就业质量线） */
 
 import { hasTalent } from "./talents.js";
-import { educationTagClass } from "./traits.js";
+import { educationTagClass } from "./eduTags.js";
 
 function escapeHtml(s) {
   return String(s)

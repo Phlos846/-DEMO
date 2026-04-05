@@ -3,6 +3,7 @@ $root = Split-Path -Parent $MyInvocation.MyCommand.Path
 $jsDir = Join-Path $root "js"
 $names = @(
     "talents.js",
+    "eduTags.js",
     "traits.js",
     "companies.js",
     "talentRuntime.js",

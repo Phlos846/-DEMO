@@ -7,6 +7,7 @@ ROOT = Path(__file__).resolve().parent / "js"
 
 FILES = [
     "talents.js",
+    "eduTags.js",
     "traits.js",
     "companies.js",
     "talentRuntime.js",
