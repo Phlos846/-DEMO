@@ -341,7 +341,7 @@ function refreshMain() {
   const canAct = state.actionPoints > 0 && !state.gameOver;
   document.querySelectorAll(".action-btn").forEach((btn) => {
     const act = btn.dataset.action;
-    let dis = !state.gameOver;
+    let dis = !!state.gameOver;
     if (act === "study") dis = dis || state.actionPoints < 2;
     else dis = dis || !canAct;
     if (act === "apply") dis = dis || state.energy < 10;
