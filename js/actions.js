@@ -128,6 +128,8 @@ export function applyDailyAction(state, actionId) {
     state.resumeQuality = clampResumeToCap(state, state.resumeQuality + rqGain);
     applyStressDelta(state, c.stress ?? 0, "action");
     state.studyCount = (state.studyCount ?? 0) + 1;
+    /** 考公/考研倾向：与本次学习的 overloadMult、recoveryMult 一致（无额外随机） */
+    state.studyPivotHidden = (state.studyPivotHidden ?? 0) + overloadMult * recoveryMult;
     if (hadOverloadDebuff) {
       state.studyCountWhileOverloadDebuff = (state.studyCountWhileOverloadDebuff ?? 0) + 1;
     }

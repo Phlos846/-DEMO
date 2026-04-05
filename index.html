@@ -68,6 +68,10 @@
           <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力；本轮结束 +1～2 完整度</small></button>
           <button type="button" class="action-btn" data-action="path_startup">创业脑暴<br><small>累计 4 次可走创业线</small></button>
         </div>
+        <p class="hint early-settle-hint hidden">
+          <button type="button" id="btn-early-settle" class="secondary">提前结算本局</button>
+          至少一份 Offer 时可结束秋招并进入结局（未到第 30 天亦可）。
+        </p>
         <div class="day-control-row">
           <button type="button" id="btn-end-day" class="secondary" disabled>结束本日（行动点已用尽）</button>
           <button type="button" id="btn-overdraft" class="secondary hidden">透支：再行动 1 次（本日限 1 次）</button>
@@ -78,7 +82,6 @@
         <h2>Offer</h2>
         <ul id="offer-list" class="offer-list"></ul>
         <p id="offer-empty" class="muted">暂无 Offer</p>
-        <p class="hint early-settle-hint hidden"><button type="button" id="btn-early-settle" class="secondary">提前结算本局</button> 至少一份 Offer 时可结束秋招并进入结局（未到第 30 天亦可）。</p>
       </div>
 
       <div class="card log-panel">

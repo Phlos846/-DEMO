@@ -148,8 +148,16 @@ function setIndustryBuff(state, industry, days = 7, mult = 1.2) {
 /** 休养跳过若干自然日：模拟跨日（生活费、精力、面试队列等） */
 export function simulateForwardNaturalDays(state, steps) {
   for (let i = 0; i < steps; i++) {
+    const leavingDay = state.day;
     state.day += 1;
     pruneExpiredTransientEffects(state);
+    if (
+      state.studyRecoveryBuffUntilDay != null &&
+      leavingDay <= state.studyRecoveryBuffUntilDay &&
+      (state.studyByDay?.[leavingDay] ?? 0) >= 1
+    ) {
+      state.studyRecoveryBuffUntilDay += 1;
+    }
     if (state.day > state.maxDays) {
       state.gameOver = true;
       addLog(state, "秋招时间在休养跳过中耗尽。");
@@ -1606,9 +1614,12 @@ export function tryStudyBreakthroughEvent(state) {
 
 /**
  * 在「学习」行动结算后调用：若滚动五日内学习次数过多则弹事件并设置三日 debuff。
- * 已处于过劳 debuff 时不再重复弹窗。
+ * 已处于过劳 debuff 时不再重复弹窗；「顿悟」期间不触发用脑过度。
  */
 export function tryStudyOverloadEvent(state) {
+  if (state.studyRecoveryBuffUntilDay != null && state.day <= state.studyRecoveryBuffUntilDay) {
+    return null;
+  }
   if (studyCountLast5Days(state) < STUDY_OVERLOAD_THRESHOLD) return null;
   if (state.studyOverloadDebuffUntilDay != null && state.day <= state.studyOverloadDebuffUntilDay) {
     return null;

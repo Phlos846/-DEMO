@@ -90,7 +90,7 @@ export function companyTagPassModifier(tags) {
   return clamp(mod, 0.42, 1.32);
 }
 
-/** 学历越高基础成功率越高（与 traits 中学历 tier 对应）；各档约为旧版 ×0.7；含硕士/博士附加学历时基础 ×1.2 */
+/** 学历越高基础成功率越高（与 traits 中学历 tier 对应）；各档约为旧版 ×0.7；含硕士/博士附加学历时基础 ×1.2；最后统一 ×0.9 作用于简历/面试基础成功率 */
 function educationBasePassRate(state) {
   const eduId = state?.traits?.education?.id;
   const map = {
@@ -111,7 +111,7 @@ function educationBasePassRate(state) {
   ) {
     base *= 1.2;
   }
-  return base;
+  return base * 0.9;
 }
 
 /**
@@ -393,7 +393,14 @@ function pickTreatmentByRating(seed, rating, salIdx, eduTier) {
 }
 
 function pickReputationSet(seed, rating, salIdx, eduTier) {
-  const count = rnd() < 0.55 ? 1 : 2;
+  /** 1–5 条风评（种子决定）；与传销追加叠加后仍可能落在 4–5 条，避免「条数=传销」的可推测性 */
+  const u = (hashSeed(seed + 7) >>> 0) / 4294967296;
+  let count;
+  if (u < 0.2) count = 1;
+  else if (u < 0.44) count = 2;
+  else if (u < 0.68) count = 3;
+  else if (u < 0.86) count = 4;
+  else count = 5;
   const rb = ratingToBias(rating);
   const shift = 1 + 0.4 * rb;
   const tw = tagQualityWeightsForEducationSalary(eduTier ?? 3, salIdx);
@@ -424,18 +431,37 @@ function pickReputationSet(seed, rating, salIdx, eduTier) {
   return out;
 }
 
-/** 传销陷阱：多展示若干绿色（好）词条，便于「包装」吸引投递 */
-function augmentPyramidVisibleGoodTags(tags) {
-  const existing = new Set(tags.reputation.map((r) => r.id));
-  const candidates = REPUTATION_TAGS.filter((x) => x.quality === "good" && !existing.has(x.id));
+const MAX_REPUTATION_TAGS = 5;
+
+/**
+ * 传销陷阱：额外展示 1–3 个绿色（好）风评（种子随机，非固定 +3），便于包装又不与「风评条数」强绑定。
+ * 已满 5 条时改为用好评换差评/一般，条数不变。
+ */
+function augmentPyramidVisibleGoodTags(tags, seed) {
+  const wasFull = tags.reputation.length >= MAX_REPUTATION_TAGS;
+  let existing = new Set(tags.reputation.map((r) => r.id));
+  let candidates = REPUTATION_TAGS.filter((x) => x.quality === "good" && !existing.has(x.id));
   for (let i = candidates.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
+    const j = ((hashSeed(seed + i * 997) >>> 0) % (i + 1));
     [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
   }
-  const nAdd = Math.min(3, candidates.length);
+  const rawDesired = 1 + ((hashSeed(seed + 9021) >>> 0) % 3);
+  const room = Math.max(0, MAX_REPUTATION_TAGS - tags.reputation.length);
+  const nAdd = Math.min(rawDesired, room, candidates.length);
   for (let i = 0; i < nAdd; i++) {
     const x = candidates[i];
     tags.reputation.push({ id: x.id, label: x.label, quality: x.quality });
+    existing.add(x.id);
+  }
+  if (wasFull && candidates.length) {
+    candidates = REPUTATION_TAGS.filter((x) => x.quality === "good" && !existing.has(x.id));
+    if (candidates.length) {
+      const idx = tags.reputation.findIndex((r) => r.quality !== "good");
+      if (idx >= 0) {
+        const x = candidates[((hashSeed(seed + 6001) >>> 0) % candidates.length)];
+        tags.reputation[idx] = { id: x.id, label: x.label, quality: x.quality };
+      }
+    }
   }
 }
 
@@ -503,7 +529,7 @@ export function materializeCompany(state, shell) {
   }
 
   if (hiddenTag?.id === "hid_pyramid") {
-    augmentPyramidVisibleGoodTags(tags);
+    augmentPyramidVisibleGoodTags(tags, seed + 9021);
   }
 
   const baseApplyBonus = computeBaseApplyBonusFromTags(tags, tags.salary.tier);

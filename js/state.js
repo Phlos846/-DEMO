@@ -69,6 +69,8 @@ export function createInitialState(opts = {}) {
     studyCountWhileOverloadDebuff: 0,
     /** 「顿悟」学习增益 buff 持续至该自然日（含） */
     studyRecoveryBuffUntilDay: null,
+    /** 考公/考研结局用隐藏累加：每次学习按用脑过度、顿悟倍率增加，不对玩家展示 */
+    studyPivotHidden: 0,
     vitalFailReason: null,
     stressMax,
     energyMax: playerTalents.some((t) => t.id === "cattle") ? 118 : 100,

@@ -662,7 +662,7 @@ button.danger {
 }
 
 .early-settle-hint {
-  margin-top: 0.65rem;
+  margin: 0.85rem 0 0.35rem;
 }
 
 .end-actions {

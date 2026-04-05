@@ -110,10 +110,23 @@ function startupPivotDominates(state, n) {
   return true;
 }
 
+/**
+ * 隐藏累加值 S≈30（中性倍率下约 30 次学习）→ 基础概率 60%；S≈45 → 100%。
+ * 每个 Offer 使基础概率 -2%。倍率受用脑过度/顿悟影响，与单次学习行动一致。
+ */
+function studyPivotBaseProbability(S) {
+  if (S <= 0) return 0;
+  if (S <= 30) return 0.6 * (S / 30);
+  if (S <= 45) return 0.6 + 0.4 * ((S - 30) / 15);
+  return 1;
+}
+
 function maybeStudyPivotEnding(state, n) {
-  const sc = state.studyCount ?? 0;
-  if (n >= 5 || sc < 10) return null;
-  const p = Math.min(0.5, (sc - 9) * 0.045);
+  if (n >= 5) return null;
+  const S = state.studyPivotHidden ?? 0;
+  if (S <= 0) return null;
+  let p = studyPivotBaseProbability(S);
+  p = Math.max(0, p - 0.02 * n);
   if (Math.random() >= p) return null;
   return Math.random() < 0.5 ? "postgrad" : "civil";
 }

@@ -568,8 +568,16 @@ function tryGameOver() {
 }
 
 function advanceDay() {
+  const leavingDay = state.day;
   state.day += 1;
   pruneExpiredTransientEffects(state);
+  if (
+    state.studyRecoveryBuffUntilDay != null &&
+    leavingDay <= state.studyRecoveryBuffUntilDay &&
+    (state.studyByDay?.[leavingDay] ?? 0) >= 1
+  ) {
+    state.studyRecoveryBuffUntilDay += 1;
+  }
   state.overdraftUsedToday = false;
   rollExeGlitchForDay(state);
   applyDailyMoneyTick(state);
