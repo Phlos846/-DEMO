@@ -241,10 +241,11 @@ export function buildCompanies() {
   return Array.from({ length: 20 }, (_, i) => buildCompanyShell(i, seed + i * 17));
 }
 
-/** 单次「投递简历」轮次专用：本局内每开一轮都会重新随机 20 家，id 带批次号避免冲突 */
+/** 单次「投递简历」轮次专用：每轮随机 15–20 家，id 带批次号避免冲突 */
 export function buildCompaniesForApplySession(batchId) {
   const seed = Math.floor(Math.random() * 1e9);
-  return Array.from({ length: 20 }, (_, i) => {
+  const n = 15 + Math.floor(Math.random() * 6);
+  return Array.from({ length: n }, (_, i) => {
     const shell = buildCompanyShell(i, seed + i * 17);
     shell.id = `co_b${batchId}_i${i}`;
     return shell;

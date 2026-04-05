@@ -2,9 +2,15 @@
 
 import { applyStressDelta, talentStudyBonus, applyEnergyDelta, applyMoneyDelta } from "./talentRuntime.js";
 import { clampResumeToCap } from "./state.js";
+import { hasTalent } from "./talents.js";
+
+/** 用脑过度时学习三维/简历增益乘算（供界面展示） */
+export const STUDY_OVERLOAD_GAIN_MULT = 0.55;
+/** 顿悟突破后学习增益乘算（供界面展示） */
+export const STUDY_RECOVERY_BUFF_MULT = 1.28;
 
 export const ACTION_COSTS = {
-  rest: { stress: -8, energy: 22 },
+  rest: { stress: -6, energy: 22 },
   fun: { stress: -28, energy: -11, money: -55 },
   study: { energy: -15, stress: 3, hiddenResume: 2, hiddenInterview: 1, resumeQuality: 3 },
   apply: { energy: -8, stress: 4 },
@@ -70,17 +76,61 @@ export function applyDailyAction(state, actionId) {
     return "娱乐：吃喝玩乐都要花钱，压力降了，钱包也瘦了。";
   }
   if (actionId === "study") {
+    if (!state.studyByDay) state.studyByDay = {};
+    state.studyByDay[state.day] = (state.studyByDay[state.day] ?? 0) + 1;
+    const hadOverloadDebuff =
+      state.studyOverloadDebuffUntilDay != null && state.day <= state.studyOverloadDebuffUntilDay;
     const tb = talentStudyBonus(state);
     applyEnergyDelta(state, c.energy ?? 0);
     const studyScale = 0.9;
-    const hrGain = Math.round(((c.hiddenResume ?? 0) + tb.hiddenResume) * studyScale);
-    const hiGain = Math.round(((c.hiddenInterview ?? 0) + tb.hiddenInterview) * studyScale);
-    const rqGain = Math.round(((c.resumeQuality ?? 0) + tb.resumeQuality) * studyScale);
+    let studyEffMult = 1;
+    if (hasTalent(state, "stress_to_power")) {
+      const st = state.stress ?? 0;
+      if (st > 80) studyEffMult = 1.5;
+      else if (st < 80) studyEffMult = 0.2;
+    }
+    const overloadMult =
+      state.studyOverloadDebuffUntilDay != null && state.day <= state.studyOverloadDebuffUntilDay
+        ? STUDY_OVERLOAD_GAIN_MULT
+        : 1;
+    const recoveryMult =
+      state.studyRecoveryBuffUntilDay != null && state.day <= state.studyRecoveryBuffUntilDay
+        ? STUDY_RECOVERY_BUFF_MULT
+        : 1;
+    /** 收益在基准值 ±30% 内浮动（每项独立随机） */
+    const gainFloat = () => 0.7 + Math.random() * 0.6;
+    const hrGain = Math.round(
+      ((c.hiddenResume ?? 0) + tb.hiddenResume) *
+        studyScale *
+        studyEffMult *
+        overloadMult *
+        recoveryMult *
+        gainFloat(),
+    );
+    const hiGain = Math.round(
+      ((c.hiddenInterview ?? 0) + tb.hiddenInterview) *
+        studyScale *
+        studyEffMult *
+        overloadMult *
+        recoveryMult *
+        gainFloat(),
+    );
+    const rqGain = Math.round(
+      ((c.resumeQuality ?? 0) + tb.resumeQuality) *
+        studyScale *
+        studyEffMult *
+        overloadMult *
+        recoveryMult *
+        gainFloat(),
+    );
     state.hiddenResume = clamp(state.hiddenResume + hrGain, 0, 100);
     state.hiddenInterview = clamp(state.hiddenInterview + hiGain, 0, 100);
     state.resumeQuality = clampResumeToCap(state, state.resumeQuality + rqGain);
     applyStressDelta(state, c.stress ?? 0, "action");
     state.studyCount = (state.studyCount ?? 0) + 1;
+    if (hadOverloadDebuff) {
+      state.studyCountWhileOverloadDebuff = (state.studyCountWhileOverloadDebuff ?? 0) + 1;
+    }
     return "学习：精力下降，简历完整度与隐藏通过率变化。";
   }
   if (actionId === "apply") {

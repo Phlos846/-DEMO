@@ -1,4 +1,4 @@
-import { addLog } from "./state.js";
+import { addLog, clampResumeToCap } from "./state.js";
 import { materializeCompany, expectedResumePass, updateJobSearchRating } from "./match.js";
 import {
   talentRevealEnergyCost,
@@ -127,5 +127,11 @@ export function applySessionComplete(state) {
 }
 
 export function endApplySession(state) {
+  const s = state.applySession;
+  if (s && s.submitted > 0) {
+    const bump = 1 + Math.floor(Math.random() * 2);
+    state.resumeQuality = clampResumeToCap(state, state.resumeQuality + bump);
+    addLog(state, `第 ${state.day} 天：本轮投递结束，简历完整度 +${bump}。`);
+  }
   state.applySession = null;
 }

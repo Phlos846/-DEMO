@@ -31,6 +31,26 @@ function resumeQualityNorm(state) {
   return clamp((state?.resumeQuality ?? 0) / cap, 0, 1);
 }
 
+/**
+ * 蓝色天赋「越薄越勇」：按当前简历完整度（绝对值，相对 resumeQualityMax）分段线性。
+ * 完成度 0 → 乘区 0；0–1 → 0→2；1–50 → 2→1.2；50 以上按同斜率延伸。
+ */
+function thinnerBolderPassMult(state) {
+  if (!hasTalent(state, "thinner_bolder")) return 1;
+  const cap = state?.resumeQualityMax ?? 120;
+  let rq = state?.resumeQuality ?? 0;
+  rq = clamp(rq, 0, cap);
+  if (rq <= 0) return 0;
+  const slope = (1.2 - 2) / (50 - 1);
+  if (rq <= 1) {
+    return 2 * rq;
+  }
+  if (rq <= 50) {
+    return 2 + (rq - 1) * slope;
+  }
+  return 1.2 + (rq - 50) * slope;
+}
+
 function rnd() {
   return Math.random();
 }
@@ -172,8 +192,25 @@ function passMultiplier211Sci(state, company) {
   return 1;
 }
 
+/**
+ * 向上投递：岗位薪资档高于当前学历期望中心档时，简历过筛期望 ×0.8。
+ * 期望档与 marketAlignment 一致（targetSalaryTierIndexForEduTier）。
+ * 传销隐藏 tag（hid_pyramid）不套用惩罚。
+ */
+function upwardStretchResumePenaltyMult(state, company) {
+  if (company.hiddenTag?.id === "hid_pyramid") return 1;
+  const tags = company.tags;
+  if (!tags?.salary) return 1;
+  const eduTier = state.traits?.education?.tier ?? 3;
+  const targetSal = targetSalaryTierIndexForEduTier(eduTier);
+  const salTier = tags.salary?.tier ?? 0;
+  if (salTier > targetSal) return 0.8;
+  return 1;
+}
+
 export function expectedResumePass(state, company, hiddenRevealed) {
   if (state.godMode) return 1;
+  if (company.hiddenTag?.id === "hid_pyramid") return 1;
   const tags = company.tags;
   if (!tags) return 0.02;
 
@@ -199,12 +236,19 @@ export function expectedResumePass(state, company, hiddenRevealed) {
   if (hasTalent(state, "otaku_pro") && (company.industry === "game" || company.industry === "anime")) {
     p *= 1.078;
   }
+  if (hasTalent(state, "ddl_warrior") && state.day >= (state.maxDays ?? 30) - 9) {
+    p *= 1.2;
+  }
+  p *= thinnerBolderPassMult(state);
+  p *= upwardStretchResumePenaltyMult(state, company);
+  if (hasTalent(state, "resume_red_flag")) p *= 0.89;
 
   return clamp(p, 0.02, 0.92);
 }
 
 export function expectedInterviewPass(state, company, hiddenRevealed) {
   if (state.godMode) return 1;
+  if (company.hiddenTag?.id === "hid_pyramid") return 1;
   const tags = company.tags;
   if (!tags) return 0.025;
 
@@ -228,6 +272,11 @@ export function expectedInterviewPass(state, company, hiddenRevealed) {
   if (hasTalent(state, "otaku_pro") && (company.industry === "game" || company.industry === "anime")) {
     p *= 1.085;
   }
+  if (hasTalent(state, "ddl_warrior") && state.day >= (state.maxDays ?? 30) - 9) {
+    p *= 1.2;
+  }
+  p *= thinnerBolderPassMult(state);
+  if (hasTalent(state, "stage_fright")) p *= 0.87;
 
   return clamp(p, 0.025, 0.92);
 }
@@ -375,6 +424,21 @@ function pickReputationSet(seed, rating, salIdx, eduTier) {
   return out;
 }
 
+/** 传销陷阱：多展示若干绿色（好）词条，便于「包装」吸引投递 */
+function augmentPyramidVisibleGoodTags(tags) {
+  const existing = new Set(tags.reputation.map((r) => r.id));
+  const candidates = REPUTATION_TAGS.filter((x) => x.quality === "good" && !existing.has(x.id));
+  for (let i = candidates.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [candidates[i], candidates[j]] = [candidates[j], candidates[i]];
+  }
+  const nAdd = Math.min(3, candidates.length);
+  for (let i = 0; i < nAdd; i++) {
+    const x = candidates[i];
+    tags.reputation.push({ id: x.id, label: x.label, quality: x.quality });
+  }
+}
+
 /** 上帝模式：顶配薪资 + 全好标签、无隐藏雷 */
 function materializeCompanyGodMode(shell) {
   const top = SALARY_BANDS_META[SALARY_BANDS_META.length - 1];
@@ -434,12 +498,12 @@ export function materializeCompany(state, shell) {
   const hasHidden = rnd() < 0.4;
   let hiddenTag = null;
   if (hasHidden) {
-    let raw = { ...pickSeeded(HIDDEN_POOL, seed + 5000) };
-    if (raw.id === "hid_pyramid" && rnd() < 0.5) {
-      const poolNoPyramid = HIDDEN_POOL.filter((h) => h.id !== "hid_pyramid");
-      raw = { ...pickSeeded(poolNoPyramid, seed + 5001) };
-    }
-    hiddenTag = raw;
+    /** 相对旧版「抽到传销后 50% 换掉」：去掉折损，传销条件概率由 1/18 提至 1/9（+100%） */
+    hiddenTag = { ...pickSeeded(HIDDEN_POOL, seed + 5000) };
+  }
+
+  if (hiddenTag?.id === "hid_pyramid") {
+    augmentPyramidVisibleGoodTags(tags);
   }
 
   const baseApplyBonus = computeBaseApplyBonusFromTags(tags, tags.salary.tier);

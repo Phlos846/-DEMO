@@ -1,7 +1,7 @@
 /**
- * 玩家天赋：每局 1–2 个；稀有度配色 + 权重
- * 稀有度先验（权重合计 100）：金 4.5% / 紫 22% / 蓝 30% / 白 38.5% / 黑 5%
- * 金为原 1.5×；蓝紫不变；白略降。
+ * 玩家天赋：每局 2–3 个；稀有度配色 + 权重
+ * 稀有度先验（权重合计 100）：金 4.5% / 紫 22% / 蓝 30% / 白 33.5% / 黑 10%
+ * 黑较原 +5% 先验；白相应下调。
  */
 
 function rnd() {
@@ -13,8 +13,8 @@ export const RARITY_WEIGHT = {
   gold: 4.5,
   purple: 22,
   blue: 30,
-  white: 38.5,
-  black: 5,
+  white: 33.5,
+  black: 10,
 };
 
 export const RARITY_CLASS = {
@@ -151,6 +151,27 @@ export const TALENTS = [
     pickWeight: 9,
     desc: "每日生活费 +10，但休息恢复的精力略多。",
   },
+  {
+    id: "ddl_warrior",
+    name: "DDL 战士",
+    rarity: "blue",
+    pickWeight: 10,
+    desc: "秋招最后 10 个自然日内，简历过筛与面试的通过概率为原来的 1.2 倍。",
+  },
+  {
+    id: "thinner_bolder",
+    name: "越薄越勇",
+    rarity: "blue",
+    pickWeight: 10,
+    desc: "按当前简历完整度（绝对值）对简历/面试期望乘算：完整度为 0 时乘区为 0；完整度 1 时为 2 倍、50 时为 1.2 倍，其间线性；超过 50 仍按同斜率延伸（完整度越高乘区越低）。",
+  },
+  {
+    id: "stress_to_power",
+    name: "压力即动力",
+    rarity: "blue",
+    pickWeight: 10,
+    desc: "压力上限变为 120；压力大于 80 时学习效率 +50%，小于 80 时学习效率 −80%（恰好 80 时不额外增减）。满压缓冲整场仅一次：首次顶满当日不立刻失败，次日仍满压则失败；该轮若曾降压离开满压，则视为缓冲已用尽，之后再满压将立刻失败。",
+  },
   // —— 白色 ——
   {
     id: "normal_human",
@@ -230,6 +251,41 @@ export const TALENTS = [
     pickWeight: 8,
     desc: "零 Offer 时额外焦虑（压力）更明显；但一旦上岸，减压也更快。",
   },
+  {
+    id: "frail_body",
+    name: "体虚",
+    rarity: "black",
+    pickWeight: 8,
+    desc: "跨日被动精力恢复明显降低（无正面补偿）。",
+  },
+  {
+    id: "stage_fright",
+    name: "面试怯场",
+    rarity: "black",
+    pickWeight: 8,
+    desc: "面试期望通过率显著降低（简历不受影响）。",
+  },
+  {
+    id: "resume_red_flag",
+    name: "简历疑云",
+    rarity: "black",
+    pickWeight: 8,
+    desc: "简历过筛期望显著降低（面试不受影响）。",
+  },
+  {
+    id: "overthink",
+    name: "精神内耗",
+    rarity: "black",
+    pickWeight: 7,
+    desc: "每个新自然日开始时额外增加压力（纯负面）。",
+  },
+  {
+    id: "echo_chamber",
+    name: "信息茧房",
+    rarity: "black",
+    pickWeight: 7,
+    desc: "每个新自然日求职匹配分（ELO）略降，岗位池整体更难匹配。",
+  },
 ];
 
 export function talentById(id) {
@@ -261,9 +317,9 @@ function pickRarity() {
   return "white";
 }
 
-/** 每局随机 1–2 个不重复天赋 */
+/** 每局随机 2–3 个不重复天赋 */
 export function rollPlayerTalents() {
-  const count = rnd() < 0.52 ? 1 : 2;
+  const count = rnd() < 0.55 ? 2 : 3;
   const picked = [];
   const used = new Set();
   for (let i = 0; i < count; i++) {
@@ -286,4 +342,45 @@ export function rollPlayerTalents() {
 
 export function formatTalentsLog(talents) {
   return talents.map((t) => `天赋[${t.name}]：${t.desc}`);
+}
+
+export function escapeHtml(s) {
+  return String(s)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+/**
+ * 天赋名为按钮，具体效果在气泡内（非弹窗）。
+ * @param {{ id: string, name: string, desc: string, rarity?: string }} talent
+ * @param {string} uidSuffix 区分主界面 / 结局等同屏多处
+ */
+export function talentLineBubbleHtml(talent, uidSuffix) {
+  const cls = RARITY_CLASS[talent.rarity] ?? "talent-white";
+  const id = `tb-${talent.id}-${uidSuffix}`;
+  const safeName = escapeHtml(talent.name);
+  const safeDesc = escapeHtml(talent.desc);
+  return `<div class="talent-line">
+    <button type="button" class="talent-bubble-btn talent-name ${cls}" aria-expanded="false" aria-controls="${id}">${safeName}</button>
+    <div id="${id}" class="talent-bubble" role="tooltip" hidden>
+      <div class="talent-bubble-inner">${safeDesc}</div>
+    </div>
+  </div>`;
+}
+
+/** 结局页：全局数值摘要同样用气泡展示 */
+export function talentNumericSummaryBubbleHtml(lines, uidSuffix) {
+  if (!lines?.length) return "";
+  const id = `tb-numeric-${uidSuffix}`;
+  const inner = lines
+    .map((h) => `<p class="talent-bubble-hint-line">${escapeHtml(h)}</p>`)
+    .join("");
+  return `<div class="talent-line talent-line-numeric">
+    <button type="button" class="talent-bubble-btn talent-summary-btn" aria-expanded="false" aria-controls="${id}">本局数值摘要</button>
+    <div id="${id}" class="talent-bubble talent-bubble-wide" role="tooltip" hidden>
+      <div class="talent-bubble-inner">${inner}</div>
+    </div>
+  </div>`;
 }

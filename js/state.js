@@ -50,16 +50,27 @@ export function createInitialState(opts = {}) {
     money -= 200;
   }
 
+  const stressMax = playerTalents.some((t) => t.id === "stress_to_power") ? 120 : 100;
+
   const state = {
     day: 1,
     maxDays: 30,
     actionPoints: 3,
     maxActionPointsPerDay: 3,
-    stress: clamp(30 + (statFx.stress ?? 0), 0, 100),
+    stress: clamp(30 + (statFx.stress ?? 0), 0, stressMax),
     energy: clamp(80 + (statFx.energy ?? 0), 0, 100),
     godMode: !!opts.godMode,
     studyCount: 0,
+    /** 自然日 -> 当日学习行动次数，用于连续五日学习过劳判定 */
+    studyByDay: {},
+    /** 学习过劳 debuff 持续至该自然日（含）；与 tryStudyOverloadEvent 同步 */
+    studyOverloadDebuffUntilDay: null,
+    /** 当前一轮「用脑过度」期间，在 debuff 下完成的「学习」次数（用于强制突破判定） */
+    studyCountWhileOverloadDebuff: 0,
+    /** 「顿悟」学习增益 buff 持续至该自然日（含） */
+    studyRecoveryBuffUntilDay: null,
     vitalFailReason: null,
+    stressMax,
     energyMax: playerTalents.some((t) => t.id === "cattle") ? 118 : 100,
     resumeQualityMax: RESUME_QUALITY_MAX,
     resumeQuality: clamp(45 + (statFx.resumeQuality ?? 0), 0, RESUME_QUALITY_MAX),
@@ -78,6 +89,9 @@ export function createInitialState(opts = {}) {
     exeGlitchToday: 0,
     pressureKingTriggered: false,
     stressLockUntilDay: null,
+    /** 压力即动力：仅一轮「满压当日不立刻死、次日仍满则死」；顶满后若降压则记为已消耗，之后满压立刻死 */
+    stress120GraceDay: null,
+    stress120GraceConsumed: false,
     nextCompanyBatch: 0,
     resumePending: [],
     applySession: null,
@@ -92,6 +106,22 @@ export function createInitialState(opts = {}) {
     industrySalaryBuff: null,
     log: [],
     gameOver: false,
+    /** 结算时玩家点选的主 Offer；未选时结局按薪资自动最优 */
+    playerChosenOffer: null,
+    /** 本自然日是否已使用过「透支再行动」（每日最多一次） */
+    overdraftUsedToday: false,
+    /** 为 true 时，下一次跨日不触发跨日精力恢复，并额外 -15 精力 */
+    overdraftPendingPenalty: false,
+    /** 玩家主动「提前结算」结束本局（需至少一份 Offer） */
+    voluntaryEarlyEnd: false,
+    /** 随机事件中「立刻结算」类结局：{ id, title, body }，由 computeEnding 优先采用 */
+    eventImmediateEnding: null,
+    /** 当日面试结果弹窗队列：{ emoji, title, body }[] */
+    interviewModalQueue: [],
+    /** 娱乐额外事件等：下一次选择行动时不消耗行动点 */
+    funNextActionFree: false,
+    /** 随机事件施加的临时 buff/debuff（与性格/天赋无关） */
+    transientEffects: [],
   };
 
   applyGeniusStatBonus(state);

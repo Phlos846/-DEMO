@@ -147,6 +147,46 @@ body {
   font-size: 1.1rem;
 }
 
+.status-effects {
+  margin-bottom: 1rem;
+}
+
+.status-effects-title {
+  margin: 0 0 0.35rem;
+  font-size: 0.95rem;
+}
+
+.status-effects-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.8rem;
+}
+
+.status-effects-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.88rem;
+}
+
+.status-effect {
+  margin-bottom: 0.35rem;
+}
+
+.status-effect--debuff {
+  color: #e8a0a0;
+  border-left: 3px solid var(--danger);
+  padding-left: 0.5rem;
+  margin-left: -0.5rem;
+  list-style-position: outside;
+}
+
+.status-effect--buff {
+  color: #a8d4a8;
+  border-left: 3px solid var(--success);
+  padding-left: 0.5rem;
+  margin-left: -0.5rem;
+  list-style-position: outside;
+}
+
 .banner {
   background: linear-gradient(90deg, #2a3f5a, #1a2332);
   border: 1px solid var(--accent-dim);
@@ -165,6 +205,18 @@ body {
   grid-template-columns: repeat(2, 1fr);
   gap: 0.5rem;
   margin-bottom: 1rem;
+}
+
+.day-control-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.day-control-row .secondary {
+  flex: 1 1 auto;
+  min-width: min(100%, 12rem);
 }
 
 .action-btn {
@@ -299,16 +351,6 @@ button.danger {
   color: var(--muted);
 }
 
-.apply-position-line {
-  margin: 0.35rem 0 0.5rem;
-  font-size: 0.9rem;
-  color: var(--muted);
-}
-
-.apply-position-line strong {
-  color: var(--text);
-}
-
 .company-view {
   min-height: 120px;
   margin: 1rem 0;
@@ -399,13 +441,79 @@ button.danger {
 }
 
 .talent-line {
+  position: relative;
   margin: 0.35rem 0;
   line-height: 1.45;
 }
 
+.talent-bubble-btn {
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 0.2rem 0.45rem;
+  margin: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.talent-bubble-btn:hover {
+  background: rgba(255, 255, 255, 0.06);
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+.talent-bubble-btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.talent-summary-btn {
+  font-size: 0.86rem;
+  color: var(--muted);
+  border-style: dashed;
+}
+
+.talent-bubble {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 4px);
+  z-index: 40;
+  min-width: 12rem;
+  max-width: min(22rem, calc(100vw - 2rem));
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
+  text-align: left;
+  color: var(--text);
+}
+
+.talent-bubble-wide {
+  max-width: min(26rem, calc(100vw - 2rem));
+}
+
+.talent-bubble-inner {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.talent-bubble-hint-line {
+  margin: 0.35rem 0 0;
+  font-size: 0.84rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.talent-bubble-hint-line:first-child {
+  margin-top: 0;
+}
+
 .talent-name {
   font-weight: 600;
-  margin-right: 0.35rem;
+  margin-right: 0;
 }
 
 .talent-gold {
@@ -456,6 +564,13 @@ button.danger {
   width: 100%;
 }
 
+.interview-result-desc {
+  white-space: pre-line;
+  text-align: left;
+  margin: 0.5rem 0 0;
+  line-height: 1.55;
+}
+
 .event-modal-card {
   text-align: center;
 }
@@ -475,8 +590,88 @@ button.danger {
   text-align: left;
 }
 
+.offer-pick-card {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.offer-pick-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+  text-align: left;
+}
+
+.offer-pick-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  padding: 0.55rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  cursor: pointer;
+  background: rgba(0, 0, 0, 0.12);
+}
+
+.offer-pick-row:hover {
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.offer-pick-row input {
+  margin-top: 0.35rem;
+  flex-shrink: 0;
+}
+
+.offer-pick-main {
+  flex: 1;
+  min-width: 0;
+  line-height: 1.45;
+  font-size: 0.9rem;
+}
+
+.offer-pick-logo {
+  margin-right: 0.35rem;
+}
+
+.offer-pick-name {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.offer-pick-tier {
+  display: inline;
+}
+
+.offer-pick-trap {
+  color: var(--danger);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
 .end-card {
   text-align: center;
+}
+
+.end-early-day {
+  margin: 0.65rem auto 0;
+  max-width: 26rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.early-settle-hint {
+  margin-top: 0.65rem;
+}
+
+.end-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  justify-content: center;
+  align-items: center;
+  margin-top: 1.25rem;
 }
 
 .end-card-emoji {
@@ -494,6 +689,37 @@ button.danger {
 
 .end-card #end-body {
   color: var(--text);
+}
+
+.end-talents {
+  margin: 1rem 0;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0.9rem 1rem;
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.end-talents-title {
+  margin: 0 0 0.65rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--accent);
+  text-align: center;
+}
+
+.end-talents-inner .talent-line {
+  margin-bottom: 0.45rem;
+}
+
+.end-talents-inner .talent-line:last-child {
+  margin-bottom: 0;
+}
+
+.end-talents-hint {
+  margin: 0 0 0.65rem;
+  font-size: 0.82rem;
+  text-align: center;
 }
 
 .end-best-offer {
@@ -542,4 +768,152 @@ button.danger {
   margin: 0;
   font-size: 0.86rem;
   line-height: 1.45;
+}
+
+/* 临界压力 / 低精力：全屏氛围（#vital-fx z-index 低于 .modal，弹窗在上） */
+.vital-fx {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.vital-fx-stress,
+.vital-fx-energy {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+}
+
+.vital-fx--stress .vital-fx-stress {
+  opacity: 1;
+  background:
+    radial-gradient(ellipse 100% 85% at 50% 42%, rgba(255, 60, 40, 0) 0%, rgba(255, 45, 35, 0.14) 55%, rgba(130, 15, 25, 0.5) 100%),
+    linear-gradient(180deg, rgba(90, 10, 15, 0.35) 0%, transparent 40%, rgba(40, 5, 10, 0.45) 100%);
+  mix-blend-mode: multiply;
+  animation: vital-stress-pulse 1.8s ease-in-out infinite;
+}
+
+.vital-fx--stress .vital-fx-stress::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at 50% 50%, transparent 30%, rgba(180, 30, 40, 0.22) 100%);
+  animation: vital-stress-vignette 2.4s ease-in-out infinite;
+}
+
+.vital-fx--energy .vital-fx-energy {
+  opacity: 1;
+  background: radial-gradient(ellipse 95% 90% at 50% 48%, rgba(30, 55, 90, 0) 35%, rgba(8, 18, 38, 0.82) 100%);
+  box-shadow: inset 0 0 100px rgba(10, 25, 55, 0.65);
+  animation: vital-energy-breathe 3.2s ease-in-out infinite;
+}
+
+.vital-fx--energy .vital-fx-energy::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(255, 255, 255, 0.02) 2px,
+    rgba(255, 255, 255, 0.02) 3px
+  );
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+@keyframes vital-stress-pulse {
+  0%,
+  100% {
+    filter: brightness(1);
+  }
+  50% {
+    filter: brightness(1.08);
+  }
+}
+
+@keyframes vital-stress-vignette {
+  0%,
+  100% {
+    opacity: 0.85;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+@keyframes vital-energy-breathe {
+  0%,
+  100% {
+    opacity: 0.88;
+    filter: saturate(0.65) brightness(0.9);
+  }
+  50% {
+    opacity: 1;
+    filter: saturate(0.45) brightness(0.82);
+  }
+}
+
+@keyframes vital-screen-shake {
+  0%,
+  100% {
+    transform: translate(0, 0);
+  }
+  15% {
+    transform: translate(-2px, 1px);
+  }
+  30% {
+    transform: translate(2px, -1px);
+  }
+  45% {
+    transform: translate(-1px, -2px);
+  }
+  60% {
+    transform: translate(2px, 1px);
+  }
+  75% {
+    transform: translate(-2px, 0);
+  }
+}
+
+@keyframes vital-screen-sway {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+body.vital-stress-active #app {
+  animation: vital-screen-shake 0.32s linear infinite;
+  will-change: transform;
+}
+
+body.vital-energy-active:not(.vital-stress-active) #app {
+  animation: vital-screen-sway 2.6s ease-in-out infinite;
+  will-change: transform;
+}
+
+body.vital-stress-active.vital-energy-active #app {
+  animation:
+    vital-screen-shake 0.32s linear infinite,
+    vital-screen-sway 2.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .vital-fx--stress .vital-fx-stress,
+  .vital-fx--energy .vital-fx-energy {
+    animation: none;
+  }
+
+  body.vital-stress-active #app,
+  body.vital-energy-active #app {
+    animation: none;
+  }
 }

@@ -3,6 +3,13 @@
  */
 
 import { hasTalent } from "./talents.js";
+import {
+  aggregateStressGainMult,
+  aggregateStressReliefMult,
+  aggregateEnergyDrainMult,
+  aggregateEnergyRecoverMult,
+  aggregatePassiveEnergyRecoverMult,
+} from "./transientEffects.js";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -10,6 +17,10 @@ function clamp(n, lo, hi) {
 
 function resumeCapFor(state) {
   return state?.resumeQualityMax ?? 120;
+}
+
+function stressCap(state) {
+  return state?.stressMax ?? 100;
 }
 
 const EDU_HIGH = [
@@ -38,7 +49,7 @@ export function applyGeniusStatBonus(state) {
   state.resumeQuality = clamp(state.resumeQuality + 14, 0, resumeCapFor(state));
   state.hiddenResume = clamp(state.hiddenResume + 16, 0, 100);
   state.hiddenInterview = clamp(state.hiddenInterview + 14, 0, 100);
-  state.stress = clamp(state.stress - 5, 0, 100);
+  state.stress = clamp(state.stress - 5, 0, stressCap(state));
 }
 
 export function applyNormalHumanBonus(state) {
@@ -46,7 +57,7 @@ export function applyNormalHumanBonus(state) {
   state.resumeQuality = clamp(state.resumeQuality + 3, 0, resumeCapFor(state));
   state.hiddenResume = clamp(state.hiddenResume + 2, 0, 100);
   state.hiddenInterview = clamp(state.hiddenInterview + 2, 0, 100);
-  state.stress = clamp(state.stress - 2, 0, 100);
+  state.stress = clamp(state.stress - 2, 0, stressCap(state));
 }
 
 /** 玉米蒸：初始压力 */
@@ -60,14 +71,20 @@ export function isGodMode(state) {
   return state?.godMode === true;
 }
 
-/** 精力变化（上帝模式忽略负向扣除） */
+/** 精力变化（上帝模式忽略负向扣除）；受临时 buff/debuff：精力消耗/回复倍率 */
 export function applyEnergyDelta(state, delta) {
   const mx = state.energyMax ?? 100;
   if (isGodMode(state) && delta < 0) return;
-  state.energy = clamp(state.energy + delta, 0, mx);
+  let adj = delta;
+  if (delta < 0) {
+    adj = delta * aggregateEnergyDrainMult(state);
+  } else if (delta > 0) {
+    adj = delta * aggregateEnergyRecoverMult(state);
+  }
+  state.energy = clamp(state.energy + adj, 0, mx);
 }
 
-/** 0 精力 / 100 压力立即失败（上帝模式豁免） */
+/** 0 精力 / 满压力立即失败（上帝模式豁免）；压力即动力的满压缓冲整场仅一次 */
 export function checkInstantFail(state) {
   if (!state || state.gameOver || isGodMode(state)) return false;
   if (state.energy <= 0) {
@@ -75,7 +92,34 @@ export function checkInstantFail(state) {
     state.gameOver = true;
     return true;
   }
-  if (state.stress >= 100) {
+  const cap = stressCap(state);
+  if (
+    state.stress < cap &&
+    hasTalent(state, "stress_to_power") &&
+    cap >= 120 &&
+    state.stress120GraceDay != null
+  ) {
+    state.stress120GraceConsumed = true;
+    state.stress120GraceDay = null;
+  }
+  if (state.stress >= cap) {
+    if (hasTalent(state, "stress_to_power") && cap >= 120) {
+      if (state.stress120GraceConsumed) {
+        state.vitalFailReason = "stress";
+        state.gameOver = true;
+        return true;
+      }
+      if (state.stress120GraceDay == null) {
+        state.stress120GraceDay = state.day;
+        return false;
+      }
+      if (state.day > state.stress120GraceDay) {
+        state.vitalFailReason = "stress";
+        state.gameOver = true;
+        return true;
+      }
+      return false;
+    }
     state.vitalFailReason = "stress";
     state.gameOver = true;
     return true;
@@ -94,7 +138,8 @@ export function applyStressDelta(state, delta, source = "other") {
     if (hasTalent(state, "boss_is_watching") && state.offers.length > 0) {
       rel *= 1.14;
     }
-    state.stress = clamp(state.stress + rel, 0, 100);
+    rel *= aggregateStressReliefMult(state);
+    state.stress = clamp(state.stress + rel, 0, stressCap(state));
     return;
   }
   if (delta === 0) return;
@@ -126,10 +171,14 @@ export function applyStressDelta(state, delta, source = "other") {
   }
 
   if (d > 0) {
+    d *= aggregateStressGainMult(state);
+  }
+
+  if (d > 0) {
     d *= 1.2;
   }
 
-  state.stress = clamp(state.stress + d, 0, 100);
+  state.stress = clamp(state.stress + d, 0, stressCap(state));
 
   if (hasTalent(state, "pressure_king") && !state.pressureKingTriggered && state.stress >= 79) {
     state.pressureKingTriggered = true;
@@ -226,12 +275,29 @@ export function computeMaxActionPointsForDay(state) {
 export function applyPassiveDayRecovery(state) {
   let rec = 14;
   if (hasTalent(state, "cattle")) rec = Math.round(rec * 1.25);
+  if (hasTalent(state, "frail_body")) rec = Math.round(rec * 0.72);
   if (hasTalent(state, "coffee_life")) rec += 4;
   if (hasTalent(state, "night_owl") && state.day % 2 === 0) {
     rec = Math.round(rec * 0.62);
   }
+  rec = Math.round(rec * aggregatePassiveEnergyRecoverMult(state));
   const mx = state.energyMax ?? 100;
   state.energy = clamp(state.energy + rec, 0, mx);
+}
+
+/**
+ * 黑色天赋：每日开始时（runMorningPhase 入口）
+ * 作弊模式跳过负面
+ */
+export function applyBlackTalentMorning(state) {
+  if (!state || isGodMode(state)) return;
+  if (hasTalent(state, "overthink")) {
+    applyStressDelta(state, 2, "other");
+  }
+  if (hasTalent(state, "echo_chamber")) {
+    const r = state.jobSearchRating ?? 1500;
+    state.jobSearchRating = clamp(r - 3, 1100, 1900);
+  }
 }
 
 /** 侧面打听精力消耗 */
@@ -289,6 +355,67 @@ export function talentApplyEnergyDiscount(state) {
   if (hasTalent(state, "resume_tailor")) return 2;
   if (hasTalent(state, "offer_hunter")) return 1;
   return 0;
+}
+
+/** 结局页：天赋相关的数值摘要（与文案 desc 互补） */
+export function getEndingTalentNumericHints(state) {
+  const hints = [];
+  const tb = talentPassBonus(state);
+  if (tb.resume > 0 || tb.interview > 0) {
+    hints.push(
+      `简历/面试概率乘区：×${(1 + tb.resume).toFixed(3)} / ×${(1 + tb.interview).toFixed(3)}`,
+    );
+  }
+  if (hasTalent(state, "thinner_bolder")) {
+    const cap = state.resumeQualityMax ?? 120;
+    let rq = Math.max(0, Math.min(cap, state.resumeQuality ?? 0));
+    let m = 1;
+    if (rq <= 0) m = 0;
+    else {
+      const slope = (1.2 - 2) / (50 - 1);
+      if (rq <= 1) m = 2 * rq;
+      else if (rq <= 50) m = 2 + (rq - 1) * slope;
+      else m = 1.2 + (rq - 50) * slope;
+    }
+    hints.push(`越薄越勇：期望乘区 ×${m.toFixed(2)}（完整度 0→0，1→2，50→1.2，线性）`);
+  }
+  const sb = talentStudyBonus(state);
+  if (sb.hiddenResume || sb.hiddenInterview || sb.resumeQuality) {
+    hints.push(
+      `「学习」额外：隐藏简历+${sb.hiddenResume} · 隐藏面试+${sb.hiddenInterview} · 完整度+${sb.resumeQuality}`,
+    );
+  }
+  const ad = talentApplyEnergyDiscount(state);
+  if (ad > 0) hints.push(`投递单次精力减免：-${ad}`);
+  if (hasTalent(state, "maimai_lurker")) {
+    hints.push(`侧面打听精力：${talentRevealEnergyCost(state)}（含天赋）`);
+  }
+  if ((state.energyMax ?? 100) !== 100) {
+    hints.push(`精力上限：${state.energyMax}`);
+  }
+  if ((state.stressMax ?? 100) !== 100) {
+    hints.push(`压力上限：${state.stressMax}`);
+  }
+  const cap = computeMaxActionPointsForDay(state);
+  if (cap !== 3 || (state.exeGlitchToday ?? 0) !== 0) {
+    hints.push(`结算日行动点上限：${cap}（含天赋与当日特殊）`);
+  }
+  if (hasTalent(state, "frail_body")) {
+    hints.push("体虚：跨日精力恢复 ×0.72（相对基础，与牛马等叠乘）");
+  }
+  if (hasTalent(state, "resume_red_flag")) {
+    hints.push("简历疑云：简历过筛期望 ×0.89");
+  }
+  if (hasTalent(state, "stage_fright")) {
+    hints.push("面试怯场：面试期望 ×0.87");
+  }
+  if (hasTalent(state, "overthink")) {
+    hints.push("精神内耗：每日开始 +2 压力");
+  }
+  if (hasTalent(state, "echo_chamber")) {
+    hints.push("信息茧房：每日开始匹配分 −3（夹在 1100–1900）");
+  }
+  return hints;
 }
 
 /** 关系户：尝试直接给 Offer */

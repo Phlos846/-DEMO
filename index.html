@@ -7,6 +7,10 @@
   <link rel="stylesheet" href="./css/style.css" />
 </head>
 <body>
+  <div id="vital-fx" class="vital-fx hidden" aria-hidden="true">
+    <div class="vital-fx-stress" aria-hidden="true"></div>
+    <div class="vital-fx-energy" aria-hidden="true"></div>
+  </div>
   <div id="app">
     <header class="top-bar">
       <h1>秋招模拟器</h1>
@@ -16,7 +20,7 @@
     <section id="screen-start" class="screen">
       <div class="card">
         <h2>开局说明</h2>
-        <p class="hint">每局将<strong>随机</strong>生成：学历（含概率附加研究生/博士/双学位）、专业、1–3 个性格词条、0–2 个其他词条。通关任意结局后可「重随词条」刷开局。</p>
+        <p class="hint">每局将<strong>随机</strong>生成：学历（含概率附加研究生/博士/双学位）、专业、1–3 个性格词条、0–2 个其他词条、<strong>2–3 个天赋</strong>。通关任意结局后可「重随词条」刷开局。</p>
         <label class="hint" for="cheat-code">作弊码（可选，开局前输入）</label>
         <input type="text" id="cheat-code" class="cheat-input" placeholder="留空即正常模式" autocomplete="off" />
         <div id="start-trait-preview" class="card subtle start-preview"></div>
@@ -38,9 +42,14 @@
           <span id="res-debt-wrap" class="muted hidden"> · 负债 <span id="res-debt">0</span></span>
         </div>
         <div class="res"><span class="label">行动点</span><span id="res-ap" class="value">3</span></div>
-        <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30.0</span> / 100</div>
+        <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30.0</span> / <span id="res-stress-max">100</span></div>
         <div class="res"><span class="label">精力值</span><span id="res-energy" class="value">80</span> / <span id="res-energy-max">100</span></div>
         <div class="res"><span class="label">简历完整度</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
+      </div>
+      <div id="status-effects-bar" class="status-effects card subtle hidden">
+        <h3 class="status-effects-title">状态效果</h3>
+        <p class="hint status-effects-hint">仅显示本局临时增益/减益（不含性格与天赋）。</p>
+        <ul id="status-effects-list" class="status-effects-list"></ul>
       </div>
       <div class="hidden-stats card subtle hidden">
         <h3>隐藏加成（调试可见）</h3>
@@ -51,21 +60,25 @@
 
       <div class="actions card">
         <h2>今日安排</h2>
-        <p class="hint">每选一项消耗 1 行动点；用尽后进入下一日。</p>
+        <p class="hint">每选一项消耗 1 行动点；用尽后可结束本日，或<strong>每日限一次</strong>透支再行动 1 点。透支后，下次进入下一日时将<strong>不获得跨日精力恢复</strong>并<strong>额外 -15 精力</strong>。</p>
         <div class="action-grid">
           <button type="button" class="action-btn" data-action="rest">休息<br><small>降压力、回精力</small></button>
-          <button type="button" class="action-btn" data-action="fun">娱乐<br><small>降压力，耗精力与金钱</small></button>
+          <button type="button" class="action-btn" data-action="fun">娱乐<br><small>降压力，耗精力与金钱；20% 额外触发娱乐类随机事件</small></button>
           <button type="button" class="action-btn" data-action="study">学习<br><small>耗精力，提升隐藏通过率</small></button>
-          <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力</small></button>
+          <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力；本轮结束 +1～2 完整度</small></button>
           <button type="button" class="action-btn" data-action="path_startup">创业脑暴<br><small>累计 4 次可走创业线</small></button>
         </div>
-        <button type="button" id="btn-end-day" class="secondary" disabled>结束本日（行动点已用尽）</button>
+        <div class="day-control-row">
+          <button type="button" id="btn-end-day" class="secondary" disabled>结束本日（行动点已用尽）</button>
+          <button type="button" id="btn-overdraft" class="secondary hidden">透支：再行动 1 次（本日限 1 次）</button>
+        </div>
       </div>
 
       <div class="card">
         <h2>Offer</h2>
         <ul id="offer-list" class="offer-list"></ul>
         <p id="offer-empty" class="muted">暂无 Offer</p>
+        <p class="hint early-settle-hint hidden"><button type="button" id="btn-early-settle" class="secondary">提前结算本局</button> 至少一份 Offer 时可结束秋招并进入结局（未到第 30 天亦可）。</p>
       </div>
 
       <div class="card log-panel">
@@ -78,8 +91,7 @@
       <div class="card apply-card">
         <h2>投递简历</h2>
         <p class="apply-energy-line">当前精力：<span id="apply-energy">80</span> / <span id="apply-energy-max">100</span>（实时）</p>
-        <p>每轮<strong>重新随机生成 20 家</strong>公司，本轮需投递 <strong>10</strong> 份；当前已投 <span id="apply-count">0</span> / 10</p>
-        <p id="apply-position-line" class="apply-position-line">当前为本轮 <strong><span id="apply-pool-total">20</span></strong> 家公司中的第 <span id="apply-cur-idx">1</span> 家（浏览顺序）</p>
+        <p>每轮<strong>重新随机生成 15–20 家</strong>公司，本轮需投递 <strong>10</strong> 份；当前已投 <span id="apply-count">0</span> / 10</p>
         <p class="hint">投递后约 2–3 个工作日才在日志里收到简历过筛结果；「换一个」即跳过且不可再投。</p>
         <div id="company-view" class="company-view"></div>
         <div class="apply-actions">
@@ -91,13 +103,24 @@
       </div>
     </section>
 
+    <section id="screen-offer-pick" class="screen hidden">
+      <div class="card offer-pick-card">
+        <h2>选择本局主 Offer</h2>
+        <p class="hint">用于结局判定与下方展示；选中带传销陷阱的 Offer 将进入传销结局。</p>
+        <div id="offer-pick-list" class="offer-pick-list" role="radiogroup" aria-label="主 Offer"></div>
+        <button type="button" id="btn-offer-pick-confirm" class="primary" disabled>确认选择</button>
+      </div>
+    </section>
+
     <section id="screen-end" class="screen hidden">
       <div class="card end-card">
         <div id="end-emoji" class="end-card-emoji" aria-hidden="true">📋</div>
         <h2 id="end-title">结局</h2>
         <p id="end-body"></p>
+        <p id="end-early-day" class="end-early-day muted hidden" aria-live="polite"></p>
+        <div id="end-talents" class="end-talents"></div>
         <div id="end-best-offer" class="end-best-offer hidden">
-          <h3 class="end-best-offer-title">本局最佳 Offer</h3>
+          <h3 class="end-best-offer-title">本局主 Offer</h3>
           <div class="end-best-offer-inner">
             <span id="end-best-logo" class="end-best-logo" aria-hidden="true">💼</span>
             <div class="end-best-offer-main">
@@ -108,7 +131,10 @@
           </div>
         </div>
         <ul id="end-stats"></ul>
-        <button type="button" id="btn-restart" class="primary">再来一局</button>
+        <div class="end-actions">
+          <button type="button" id="btn-share-end" class="secondary">分享本局结果</button>
+          <button type="button" id="btn-restart" class="primary">再来一局</button>
+        </div>
       </div>
     </section>
 
@@ -118,6 +144,15 @@
         <h2 id="event-title">随机事件</h2>
         <p id="event-desc"></p>
         <button type="button" id="btn-event-ok" class="primary">确定</button>
+      </div>
+    </div>
+
+    <div id="modal-interview-result" class="modal hidden" role="dialog" aria-labelledby="interview-result-title">
+      <div class="modal-inner card event-modal-card interview-result-modal-card">
+        <div id="interview-result-emoji" class="event-modal-emoji" aria-hidden="true">📋</div>
+        <h2 id="interview-result-title">面试结果</h2>
+        <p id="interview-result-desc" class="interview-result-desc"></p>
+        <button type="button" id="btn-interview-result-ok" class="primary">确定</button>
       </div>
     </div>
   </div>

@@ -1,7 +1,12 @@
 import { createInitialState, addLog } from "./state.js";
 import { educationTagClass } from "./eduTags.js";
 import { formatRolledTraitsLog, rollAllTraits } from "./traits.js";
-import { formatTalentsLog, RARITY_CLASS } from "./talents.js";
+import {
+  formatTalentsLog,
+  talentLineBubbleHtml,
+  talentNumericSummaryBubbleHtml,
+  escapeHtml,
+} from "./talents.js";
 import {
   rollExeGlitchForDay,
   computeMaxActionPointsForDay,
@@ -12,9 +17,24 @@ import {
   tryNepotismOffer,
   talentRevealEnergyCost,
   checkInstantFail,
+  getEndingTalentNumericHints,
+  applyBlackTalentMorning,
+  applyEnergyDelta,
 } from "./talentRuntime.js";
-import { applyDailyAction, minCashForFunAction } from "./actions.js";
-import { planEventsForCurrentDay, resolveEvent } from "./events.js";
+import {
+  applyDailyAction,
+  minCashForFunAction,
+  STUDY_OVERLOAD_GAIN_MULT,
+  STUDY_RECOVERY_BUFF_MULT,
+} from "./actions.js";
+import {
+  planEventsForCurrentDay,
+  resolveEvent,
+  pickRandomEntertainmentEvent,
+  tryStudyOverloadEvent,
+  tryStudyBreakthroughEvent,
+  industrySalaryBuffLabelZh,
+} from "./events.js";
 import {
   startApplySession,
   getCurrentCompany,
@@ -26,20 +46,63 @@ import {
   endApplySession,
 } from "./applications.js";
 import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js";
-import { computeEnding, endingSummaryLines, getEndingEmoji, getBestOffer } from "./endings.js";
+import {
+  computeEnding,
+  endingSummaryLines,
+  buildEndingShareText,
+  getEndingEmoji,
+  getBestOffer,
+  shouldPromptPlayerOfferChoice,
+} from "./endings.js";
+import { pruneExpiredTransientEffects } from "./transientEffects.js";
 
 let state = null;
 let pendingEvent = null;
+/** 最近一次结算结局，供分享文案使用 */
+let lastEndingForShare = null;
 /** 开局界面预览用（与正式开局同一引用，天才天赋会在开局时改写学历） */
 let previewRolled = rollAllTraits();
 
 const $ = (id) => document.getElementById(id);
 
 function showScreen(id) {
-  ["screen-start", "screen-main", "screen-apply", "screen-end"].forEach((sid) => {
+  ["screen-start", "screen-main", "screen-apply", "screen-offer-pick", "screen-end"].forEach((sid) => {
     const el = $(sid);
     if (el) el.classList.toggle("hidden", sid !== id);
   });
+  updateVitalFx();
+}
+
+/** 压力 > 80：红雾 + 画面轻微横向抖动；精力 < 20：冷色压暗 + 轻微下沉感；可同时叠加 */
+function updateVitalFx() {
+  const fx = $("vital-fx");
+  const body = document.body;
+  if (!fx) return;
+  if (!state || state.gameOver) {
+    fx.classList.add("hidden");
+    fx.classList.remove("vital-fx--stress", "vital-fx--energy");
+    body.classList.remove("vital-stress-active", "vital-energy-active");
+    return;
+  }
+  if (!$("screen-start")?.classList.contains("hidden")) {
+    fx.classList.add("hidden");
+    fx.classList.remove("vital-fx--stress", "vital-fx--energy");
+    body.classList.remove("vital-stress-active", "vital-energy-active");
+    return;
+  }
+  const stressHigh = (state.stress ?? 0) > 80;
+  const energyLow = (state.energy ?? 100) < 20;
+  if (!stressHigh && !energyLow) {
+    fx.classList.add("hidden");
+    fx.classList.remove("vital-fx--stress", "vital-fx--energy");
+    body.classList.remove("vital-stress-active", "vital-energy-active");
+    return;
+  }
+  fx.classList.remove("hidden");
+  fx.classList.toggle("vital-fx--stress", stressHigh);
+  fx.classList.toggle("vital-fx--energy", energyLow);
+  body.classList.toggle("vital-stress-active", stressHigh);
+  body.classList.toggle("vital-energy-active", energyLow);
 }
 
 function renderStartTraitPreview() {
@@ -64,19 +127,14 @@ function renderTraitPanel() {
   const extras = t.extraDegrees.length ? `（${t.extraDegrees.map((e) => e.name).join("、")}）` : "";
   const other = t.other.length ? t.other.map((o) => o.name).join("、") : "无";
   const tal = state.playerTalents ?? [];
-  const talentLines = tal
-    .map((x) => {
-      const cls = RARITY_CLASS[x.rarity] ?? "talent-white";
-      return `<div class="talent-line"><span class="talent-name ${cls}">${x.name}</span><span class="muted">${x.desc}</span></div>`;
-    })
-    .join("");
+  const talentLines = tal.map((x) => talentLineBubbleHtml(x, "main")).join("");
   el.innerHTML = `
     <h2>本局词条</h2>
     <p><strong>学历</strong>：<span class="${educationTagClass(t.education.id)}">${t.education.name}</span>${extras}</p>
     <p><strong>专业</strong>：${t.major.name}</p>
     <p><strong>性格</strong>：${t.personalities.map((p) => p.name).join("、")}</p>
     <p><strong>其他</strong>：${other}</p>
-    <div class="talent-block"><strong>天赋</strong>（1–2 个）${talentLines}</div>
+    <div class="talent-block"><strong>天赋</strong>（2–3 个，点击名称查看效果）${talentLines}</div>
   `;
 }
 
@@ -127,6 +185,55 @@ function bindStart() {
   }
 }
 
+function naturalDaysRemaining(untilDay) {
+  if (untilDay == null || !state) return 0;
+  return Math.max(0, untilDay - state.day + 1);
+}
+
+function renderStatusEffects() {
+  const wrap = $("status-effects-bar");
+  const list = $("status-effects-list");
+  if (!wrap || !list || !state) return;
+  const d = state.day;
+  const rows = [];
+  if (state.studyOverloadDebuffUntilDay != null && d <= state.studyOverloadDebuffUntilDay) {
+    rows.push({
+      cls: "debuff",
+      text: `用脑过度：学习效率约 ×${STUDY_OVERLOAD_GAIN_MULT}（剩余 ${naturalDaysRemaining(state.studyOverloadDebuffUntilDay)} 个自然日）`,
+    });
+  }
+  if (state.studyRecoveryBuffUntilDay != null && d <= state.studyRecoveryBuffUntilDay) {
+    rows.push({
+      cls: "buff",
+      text: `顿悟：学习效率约 ×${STUDY_RECOVERY_BUFF_MULT}（剩余 ${naturalDaysRemaining(state.studyRecoveryBuffUntilDay)} 个自然日）`,
+    });
+  }
+  const ib = state.industrySalaryBuff;
+  if (ib && ib.untilDay >= d) {
+    const pct = Math.round((ib.mult - 1) * 100);
+    rows.push({
+      cls: "buff",
+      text: `行业风向：${industrySalaryBuffLabelZh(ib.industry)} 赛道薪资展示 +${pct}%（至第 ${ib.untilDay} 天）`,
+    });
+  }
+  for (const fx of state.transientEffects ?? []) {
+    if (fx.untilDay < d) continue;
+    const k = fx.kind === "debuff" ? "debuff" : "buff";
+    rows.push({
+      cls: k,
+      text: `${fx.label}（剩余 ${naturalDaysRemaining(fx.untilDay)} 个自然日）`,
+    });
+  }
+  wrap.classList.toggle("hidden", rows.length === 0);
+  list.innerHTML = "";
+  for (const r of rows) {
+    const li = document.createElement("li");
+    li.className = `status-effect status-effect--${r.cls}`;
+    li.textContent = r.text;
+    list.appendChild(li);
+  }
+}
+
 function refreshMain() {
   if (!state) return;
   $("day-num").textContent = String(state.day);
@@ -140,6 +247,8 @@ function refreshMain() {
   const rd = $("res-debt");
   if (rd) rd.textContent = String(Math.round(debt));
   $("res-stress").textContent = Number(state.stress ?? 0).toFixed(1);
+  const smax = $("res-stress-max");
+  if (smax) smax.textContent = String(state.stressMax ?? 100);
   $("res-energy").textContent = String(Math.round(state.energy));
   const em = $("res-energy-max");
   if (em) em.textContent = String(state.energyMax ?? 100);
@@ -197,8 +306,24 @@ function refreshMain() {
   });
   $("btn-end-day").disabled = state.actionPoints > 0 || state.gameOver;
 
+  const od = $("btn-overdraft");
+  if (od) {
+    const canOverdraft =
+      state.actionPoints <= 0 &&
+      !state.gameOver &&
+      !state.overdraftUsedToday;
+    od.classList.toggle("hidden", !canOverdraft);
+    od.disabled = !canOverdraft;
+  }
+
+  const earlyHint = document.querySelector(".early-settle-hint");
+  if (earlyHint) {
+    const showEarly = state.offers.length > 0 && !state.gameOver;
+    earlyHint.classList.toggle("hidden", !showEarly);
+  }
+
   checkInstantFail(state);
-  if (state.gameOver) tryGameOver();
+  if (state.gameOver && !(state.interviewModalQueue?.length > 0)) tryGameOver();
 
   const applyScr = $("screen-apply");
   if (applyScr && !applyScr.classList.contains("hidden") && state.applySession) {
@@ -208,14 +333,25 @@ function refreshMain() {
     if (aem) aem.textContent = String(state.energyMax ?? 100);
     renderApplyScreen();
   }
+
+  updateVitalFx();
+  renderStatusEffects();
 }
 
 function runMorningPhase() {
   if (!state || state.gameOver) return;
+  applyBlackTalentMorning(state);
   const nep = tryNepotismOffer(state);
   if (nep) addLog(state, nep);
-  const resumeMsgs = processPendingResumeFeedback(state);
-  const intvMsgs = processInterviewsAtDayStart(state);
+  const isFinalDay = state.day === state.maxDays;
+  if (
+    isFinalDay &&
+    ((state.resumePending?.length ?? 0) > 0 || (state.interviewQueue?.length ?? 0) > 0)
+  ) {
+    addLog(state, `第 ${state.day} 天：秋招截止日统一结算待反馈简历与剩余面试（不消耗行动点）。`);
+  }
+  const resumeMsgs = processPendingResumeFeedback(state, { forceFinalDay: isFinalDay });
+  const intvMsgs = processInterviewsAtDayStart(state, { noApCost: isFinalDay });
   const msgs = [...resumeMsgs, ...intvMsgs];
   refreshMain();
 
@@ -232,20 +368,48 @@ function runMorningPhase() {
   }
 
   planEventsForCurrentDay(state);
-  if (state.eventModalQueue?.length) {
-    pendingEvent = state.eventModalQueue.shift();
-    $("event-title").textContent = pendingEvent.title;
-    $("event-desc").textContent = pendingEvent.desc;
-    const emo = $("event-emoji");
-    if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
-    $("modal-event").classList.remove("hidden");
+  if (state.interviewModalQueue?.length) {
+    showNextInterviewResultModal();
+  } else if (state.eventModalQueue?.length) {
+    openFirstEventModalFromQueue();
   }
+}
+
+function openFirstEventModalFromQueue() {
+  if (!state?.eventModalQueue?.length) return;
+  pendingEvent = state.eventModalQueue.shift();
+  $("event-title").textContent = pendingEvent.title;
+  $("event-desc").textContent = pendingEvent.desc;
+  const emo = $("event-emoji");
+  if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
+  $("modal-event").classList.remove("hidden");
+}
+
+function showNextInterviewResultModal() {
+  const q = state?.interviewModalQueue;
+  if (!q || q.length === 0) {
+    $("modal-interview-result")?.classList.add("hidden");
+    if (state?.gameOver) tryGameOver();
+    openFirstEventModalFromQueue();
+    return;
+  }
+  const item = q.shift();
+  const em = $("interview-result-emoji");
+  if (em) em.textContent = item.emoji ?? "📋";
+  $("interview-result-title").textContent = item.title;
+  $("interview-result-desc").textContent = item.body;
+  $("modal-interview-result").classList.remove("hidden");
 }
 
 function closeEventModal() {
   if (pendingEvent && state) {
+    const settleNow = pendingEvent.immediateSettle;
     resolveEvent(state, pendingEvent);
     pendingEvent = null;
+    if (settleNow) {
+      state.gameOver = true;
+      state.eventModalQueue = [];
+    }
     refreshMain();
     tryGameOver();
     if (state?.gameOver) {
@@ -254,35 +418,47 @@ function closeEventModal() {
     }
   }
   if (state?.eventModalQueue?.length) {
-    pendingEvent = state.eventModalQueue.shift();
-    $("event-title").textContent = pendingEvent.title;
-    $("event-desc").textContent = pendingEvent.desc;
-    const emo = $("event-emoji");
-    if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
-    $("modal-event").classList.remove("hidden");
+    openFirstEventModalFromQueue();
     refreshMain();
     return;
   }
   $("modal-event").classList.add("hidden");
 }
 
-function tryGameOver() {
-  if (!state) return;
-  const shouldEnd = state.day > state.maxDays || state.gameOver;
-  if (!shouldEnd) return;
-  const endEl = $("screen-end");
-  if (endEl && !endEl.classList.contains("hidden")) return;
-  state.gameOver = true;
-  try {
-    localStorage.setItem("ar_ngplus_unlock", "1");
-  } catch (e) {
-    /* ignore */
-  }
-  const end = computeEnding(state);
+function renderEndScreen(end) {
+  lastEndingForShare = end;
   const endEmoji = $("end-emoji");
   if (endEmoji) endEmoji.textContent = getEndingEmoji(end.id);
   $("end-title").textContent = end.title;
   $("end-body").textContent = end.body;
+
+  const endEarly = $("end-early-day");
+  if (endEarly) {
+    if (end.id === "early_settle") {
+      endEarly.classList.remove("hidden");
+      endEarly.textContent = `本局提前结束于第 ${state.day} 天。`;
+    } else {
+      endEarly.classList.add("hidden");
+      endEarly.textContent = "";
+    }
+  }
+
+  const endTalentsEl = $("end-talents");
+  if (endTalentsEl) {
+    const tal = state.playerTalents ?? [];
+    const talentLines = tal.map((x) => talentLineBubbleHtml(x, "end")).join("");
+    const hints = getEndingTalentNumericHints(state);
+    const numericBubble = talentNumericSummaryBubbleHtml(hints, "end");
+    const hintLine =
+      hints.length > 0
+        ? '<p class="end-talents-hint muted">点击天赋名称或「本局数值摘要」查看详情</p>'
+        : '<p class="end-talents-hint muted">点击天赋名称查看效果</p>';
+    endTalentsEl.innerHTML = `
+      <h3 class="end-talents-title">本局天赋</h3>
+      ${hintLine}
+      <div class="end-talents-inner">${talentLines || '<p class="muted">无</p>'}${numericBubble}</div>
+    `;
+  }
 
   const bestOfferEl = $("end-best-offer");
   const best = getBestOffer(state);
@@ -326,17 +502,103 @@ function tryGameOver() {
   showScreen("screen-end");
 }
 
+function renderOfferPickScreen() {
+  const list = $("offer-pick-list");
+  const btn = $("btn-offer-pick-confirm");
+  if (!list || !state?.offers?.length) return;
+  const offers = state.offers;
+  list.innerHTML = offers
+    .map((o, i) => {
+      const trap = o.isPyramidTrap
+        ? ' <span class="offer-pick-trap" title="隐藏标签为传销陷阱">（传销陷阱）</span>'
+        : "";
+      return `<label class="offer-pick-row">
+  <input type="radio" name="offer-pick" value="${i}" />
+  <span class="offer-pick-main"><span class="offer-pick-logo" aria-hidden="true">${o.logo ?? "💼"}</span>
+  <span class="offer-pick-name">${escapeHtml(o.name ?? "")}</span>
+  <span class="offer-pick-tier muted">${escapeHtml(o.salaryTier ?? "薪资面议")}</span>${trap}</span>
+</label>`;
+    })
+    .join("");
+  if (btn) btn.disabled = true;
+  list.querySelectorAll('input[name="offer-pick"]').forEach((radio) => {
+    radio.addEventListener("change", () => {
+      if (btn) btn.disabled = false;
+    });
+  });
+}
+
+function tryGameOver() {
+  if (!state) return;
+  const shouldEnd = state.day > state.maxDays || state.gameOver;
+  if (!shouldEnd) return;
+  const pickScr = $("screen-offer-pick");
+  if (pickScr && !pickScr.classList.contains("hidden")) return;
+  const endEl = $("screen-end");
+  if (endEl && !endEl.classList.contains("hidden")) return;
+  state.gameOver = true;
+  try {
+    localStorage.setItem("ar_ngplus_unlock", "1");
+  } catch (e) {
+    /* ignore */
+  }
+
+  const preliminary = computeEnding(state, { skipPyramidCheck: true });
+
+  if ((state.offers?.length ?? 0) === 1) {
+    state.playerChosenOffer = state.offers[0];
+  }
+
+  if (
+    (state.offers?.length ?? 0) >= 2 &&
+    shouldPromptPlayerOfferChoice(preliminary.id)
+  ) {
+    renderOfferPickScreen();
+    showScreen("screen-offer-pick");
+    return;
+  }
+
+  if (preliminary.id === "postgrad_tv" || preliminary.id === "civil_tv") {
+    renderEndScreen(preliminary);
+    return;
+  }
+
+  const end = computeEnding(state);
+  renderEndScreen(end);
+}
+
 function advanceDay() {
   state.day += 1;
+  pruneExpiredTransientEffects(state);
+  state.overdraftUsedToday = false;
   rollExeGlitchForDay(state);
   applyDailyMoneyTick(state);
   const hosp = maybePinhaofanHospital(state);
   if (hosp) addLog(state, hosp);
   applyNoOfferAnxiety(state);
-  applyPassiveDayRecovery(state);
+
+  const debt = state.overdraftPendingPenalty;
+  if (debt) {
+    state.overdraftPendingPenalty = false;
+  }
+  if (state.godMode) {
+    applyPassiveDayRecovery(state);
+  } else if (debt) {
+    applyEnergyDelta(state, -15);
+  } else {
+    applyPassiveDayRecovery(state);
+  }
+
   state.maxActionPointsPerDay = computeMaxActionPointsForDay(state);
   state.actionPoints = state.maxActionPointsPerDay;
-  addLog(state, `进入第 ${state.day} 天。`);
+  if (debt && !state.godMode) {
+    addLog(
+      state,
+      `进入第 ${state.day} 天。透支后遗症：未获得跨日精力恢复，并额外失去 15 点精力。`,
+    );
+  } else {
+    addLog(state, `进入第 ${state.day} 天。`);
+  }
   tryGameOver();
   if (state.gameOver) return;
   runMorningPhase();
@@ -356,7 +618,12 @@ function bindMainActions() {
           return;
         }
         const note = applyDailyAction(state, "apply");
-        state.actionPoints -= 1;
+        let apDed = 1;
+        if (state.funNextActionFree) {
+          state.funNextActionFree = false;
+          apDed = 0;
+        }
+        state.actionPoints -= apDed;
         addLog(state, `第 ${state.day} 天：${note}`);
         refreshMain();
         renderApplyScreen();
@@ -364,10 +631,51 @@ function bindMainActions() {
         return;
       }
 
+      if (action === "fun") {
+        const note = applyDailyAction(state, "fun");
+        let apDed = 1;
+        if (state.funNextActionFree) {
+          state.funNextActionFree = false;
+          apDed = 0;
+        }
+        state.actionPoints -= apDed;
+        addLog(state, `第 ${state.day} 天：${note}`);
+        refreshMain();
+        if (Math.random() < 0.2 && !state.gameOver) {
+          const bonus = pickRandomEntertainmentEvent(state);
+          if (bonus) {
+            pendingEvent = bonus;
+            $("event-title").textContent = bonus.title;
+            $("event-desc").textContent = bonus.desc;
+            const emo = $("event-emoji");
+            if (emo) emo.textContent = bonus.emoji ?? "🎮";
+            $("modal-event").classList.remove("hidden");
+          }
+        }
+        return;
+      }
+
       const note = applyDailyAction(state, action);
-      state.actionPoints -= 1;
+      let apDed = 1;
+      if (state.funNextActionFree) {
+        state.funNextActionFree = false;
+        apDed = 0;
+      }
+      state.actionPoints -= apDed;
       addLog(state, `第 ${state.day} 天：${note}`);
       refreshMain();
+      if (action === "study" && !state.gameOver) {
+        const breakthrough = tryStudyBreakthroughEvent(state);
+        const ev = breakthrough ?? tryStudyOverloadEvent(state);
+        if (ev) {
+          pendingEvent = ev;
+          $("event-title").textContent = ev.title;
+          $("event-desc").textContent = ev.desc;
+          const emoEv = $("event-emoji");
+          if (emoEv) emoEv.textContent = ev.emoji ?? "📋";
+          $("modal-event").classList.remove("hidden");
+        }
+      }
     });
   });
 
@@ -375,6 +683,22 @@ function bindMainActions() {
     if (!state || state.actionPoints > 0) return;
     advanceDay();
   });
+
+  const btnOd = $("btn-overdraft");
+  if (btnOd) {
+    btnOd.addEventListener("click", () => {
+      if (!state || state.gameOver || state.actionPoints > 0) return;
+      if (state.overdraftUsedToday) return;
+      state.actionPoints = 1;
+      state.overdraftUsedToday = true;
+      state.overdraftPendingPenalty = true;
+      addLog(
+        state,
+        `第 ${state.day} 天：透支一次额外行动；结束本日后进入下一日时将不恢复精力并额外失去 15 点精力。`,
+      );
+      refreshMain();
+    });
+  }
 
   $("btn-event-ok").addEventListener("click", closeEventModal);
 }
@@ -394,7 +718,6 @@ function renderApplyScreen() {
   if (ae) ae.textContent = String(Math.round(state.energy));
   if (aem) aem.textContent = String(state.energyMax ?? 100);
   $("apply-count").textContent = String(s.submitted);
-  const posLine = $("apply-position-line");
   const view = $("company-view");
   const btnApply = $("btn-apply-co");
   const btnNext = $("btn-next-co");
@@ -402,7 +725,6 @@ function renderApplyScreen() {
   const btnSide = $("btn-side-ask");
 
   if (!co || s.submitted >= s.target || applySessionComplete(state)) {
-    if (posLine) posLine.classList.add("hidden");
     view.innerHTML =
       s.submitted >= s.target
         ? "<p><strong>本轮已投递满 10 份简历。</strong></p>"
@@ -412,15 +734,6 @@ function renderApplyScreen() {
     btnSide.classList.add("hidden");
     btnLeave.classList.remove("hidden");
     return;
-  }
-
-  if (posLine) {
-    posLine.classList.remove("hidden");
-    const pool = s.order?.length ?? 20;
-    const cur = $("apply-cur-idx");
-    const tot = $("apply-pool-total");
-    if (cur) cur.textContent = String(s.index + 1);
-    if (tot) tot.textContent = String(pool);
   }
 
   btnApply.classList.remove("hidden");
@@ -471,6 +784,8 @@ function renderApplyScreen() {
   } else {
     btnSide.classList.add("hidden");
   }
+
+  updateVitalFx();
 }
 
 function bindApplyScreen() {
@@ -526,8 +841,120 @@ function bindRestart() {
   });
 }
 
+function bindShareEnd() {
+  const btn = $("btn-share-end");
+  if (!btn) return;
+  btn.addEventListener("click", async () => {
+    if (!state || !lastEndingForShare) return;
+    const pageUrl = `${window.location.origin}${window.location.pathname}${window.location.search}`;
+    const text = buildEndingShareText(state, lastEndingForShare, { pageUrl });
+    const shareTitle = `【秋招模拟器】${lastEndingForShare.title}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: shareTitle,
+          text,
+          url: pageUrl,
+        });
+        return;
+      }
+    } catch (e) {
+      if (e && e.name === "AbortError") return;
+    }
+    try {
+      await navigator.clipboard.writeText(text);
+      alert("已复制到剪贴板，可粘贴到微信、QQ、微博等。");
+    } catch (e) {
+      window.prompt("复制失败，请手动全选复制：", text);
+    }
+  });
+}
+
+function bindTalentBubbleDismiss() {
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".talent-bubble-btn");
+    if (btn) {
+      const line = btn.closest(".talent-line");
+      const bubble = line?.querySelector(".talent-bubble");
+      if (!bubble) return;
+      const opening = !bubble.classList.contains("is-open");
+      document.querySelectorAll(".talent-bubble.is-open").forEach((el) => {
+        el.classList.remove("is-open");
+        el.setAttribute("hidden", "");
+      });
+      document.querySelectorAll('.talent-bubble-btn[aria-expanded="true"]').forEach((b) => {
+        b.setAttribute("aria-expanded", "false");
+      });
+      if (opening) {
+        bubble.classList.add("is-open");
+        bubble.removeAttribute("hidden");
+        btn.setAttribute("aria-expanded", "true");
+      }
+      return;
+    }
+    if (!e.target.closest(".talent-bubble")) {
+      document.querySelectorAll(".talent-bubble.is-open").forEach((el) => {
+        el.classList.remove("is-open");
+        el.setAttribute("hidden", "");
+      });
+      document.querySelectorAll('.talent-bubble-btn[aria-expanded="true"]').forEach((b) => {
+        b.setAttribute("aria-expanded", "false");
+      });
+    }
+  });
+}
+
+function bindEarlySettle() {
+  const btn = $("btn-early-settle");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (!state || state.gameOver) return;
+    if (!state.offers?.length) return;
+    if (
+      !confirm(
+        `确定提前结束秋招并进入结算？\n当前为第 ${state.day} 天，持有 ${state.offers.length} 份 Offer。`,
+      )
+    ) {
+      return;
+    }
+    state.voluntaryEarlyEnd = true;
+    state.gameOver = true;
+    addLog(state, `第 ${state.day} 天：选择提前结算本局。`);
+    tryGameOver();
+  });
+}
+
+function bindOfferPick() {
+  const btn = $("btn-offer-pick-confirm");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    if (!state) return;
+    const sel = document.querySelector('input[name="offer-pick"]:checked');
+    if (!sel) return;
+    const idx = parseInt(sel.value, 10);
+    const o = state.offers?.[idx];
+    if (!o) return;
+    state.playerChosenOffer = o;
+    const end = computeEnding(state);
+    renderEndScreen(end);
+  });
+}
+
 bindStart();
 bindMainActions();
 bindApplyScreen();
 bindRestart();
+bindShareEnd();
+bindTalentBubbleDismiss();
+bindOfferPick();
+bindEarlySettle();
+bindInterviewResultModal();
 renderStartTraitPreview();
+
+function bindInterviewResultModal() {
+  const btn = $("btn-interview-result-ok");
+  if (!btn) return;
+  btn.addEventListener("click", () => {
+    showNextInterviewResultModal();
+  });
+}

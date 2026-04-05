@@ -43,6 +43,10 @@ export const ENDING_EMOJI = {
   normal_ok: "✅",
   outsourcing_fate: "📦",
   default_win: "🛟",
+  early_settle: "🏁",
+  event_immigration_spam: "🌍",
+  event_credit_crisis: "📑",
+  event_headhunter_rush: "☎️",
 };
 
 export function getEndingEmoji(endingId) {
@@ -64,10 +68,15 @@ export function sortOffersBySalary(offers, state) {
   return [...offers].sort((a, b) => rank(b.salaryTier) - rank(a.salaryTier));
 }
 
-/** 结算页：按与结局相同的薪资排序取最优一份 */
-export function getBestOffer(state) {
+/** 玩家已选主 Offer，否则按薪资排序自动最优（结局与展示共用） */
+export function getBestOfferForEnding(state) {
+  if (state?.playerChosenOffer) return state.playerChosenOffer;
   if (!state?.offers?.length) return null;
   return sortOffersBySalary(state.offers, state)[0];
+}
+
+export function getBestOffer(state) {
+  return getBestOfferForEnding(state);
 }
 
 /** 年薪区间下限（万），用于「饿不死」等 */
@@ -81,15 +90,9 @@ function hasPersonality(state, id) {
   return state.traits?.personalities?.some((p) => p.id === id);
 }
 
-function hasPyramidOffer(state) {
-  return state.offers?.some((o) => o.isPyramidTrap);
-}
-
-/** 传销结局：须存在传销 Offer，且薪资排序下的「最佳 Offer」本身为传销（若最好的是正常高薪则不算） */
+/** 传销结局：当前视为「主 Offer」的一份为传销陷阱（玩家自选或自动薪资最优） */
 function pyramidEndingApplies(state) {
-  if (!hasPyramidOffer(state)) return false;
-  const best = sortOffersBySalary(state.offers, state)[0];
-  return best?.isPyramidTrap === true;
+  return getBestOfferForEnding(state)?.isPyramidTrap === true;
 }
 
 /** 学历/三维纸面偏弱，易触发「捡漏」类结局 */
@@ -115,10 +118,29 @@ function maybeStudyPivotEnding(state, n) {
   return Math.random() < 0.5 ? "postgrad" : "civil";
 }
 
-export function computeEnding(state) {
+/** 同一局内多次 computeEnding 共用一次随机，避免选 Offer 前后考研/考公结果不一致 */
+function getStudyPivotEnding(state, n) {
+  if (Object.prototype.hasOwnProperty.call(state, "studyPivotBranch")) {
+    return state.studyPivotBranch;
+  }
+  const r = maybeStudyPivotEnding(state, n);
+  state.studyPivotBranch = r;
+  return r;
+}
+
+/** 考研 TV / 考公 TV：不进入玩家选主 Offer 流程 */
+export function shouldPromptPlayerOfferChoice(preliminaryEndingId) {
+  const skip = new Set(["postgrad_tv", "civil_tv"]);
+  return !skip.has(preliminaryEndingId);
+}
+
+/**
+ * @param {{ skipPyramidCheck?: boolean }} [options] 初次试算时跳过传销判定（选完 Offer 后再算）
+ */
+export function computeEnding(state, options = {}) {
   const { stress, energy, offers, endingTags } = state;
   const n = offers.length;
-  const best = sortOffersBySalary(offers, state)[0];
+  const best = getBestOfferForEnding(state);
   const debt = state.debt ?? 0;
   const applied = state.appliedIds?.length ?? 0;
 
@@ -137,6 +159,11 @@ export function computeEnding(state) {
     };
   }
 
+  if (state.eventImmediateEnding?.id) {
+    const fe = state.eventImmediateEnding;
+    return { id: fe.id, title: fe.title, body: fe.body };
+  }
+
   if (state.lotteryJackpot) {
     return {
       id: "lottery",
@@ -145,7 +172,7 @@ export function computeEnding(state) {
     };
   }
 
-  if (pyramidEndingApplies(state)) {
+  if (!options.skipPyramidCheck && pyramidEndingApplies(state)) {
     return {
       id: "pyramid",
       title: "传销结局",
@@ -169,7 +196,15 @@ export function computeEnding(state) {
     };
   }
 
-  const studyPivot = maybeStudyPivotEnding(state, n);
+  if (state.voluntaryEarlyEnd && n >= 1) {
+    return {
+      id: "early_settle",
+      title: "提前上岸 · 见好就收",
+      body: "你手里已经握有 Offer，不再把日历熬到第 30 天。主动按下结算键：把确定感留给当下，把『万一还能更好』留给下次秋招或社招——见好就收也是一种策略。",
+    };
+  }
+
+  const studyPivot = getStudyPivotEnding(state, n);
   if (studyPivot === "postgrad") {
     return {
       id: "postgrad_tv",
@@ -348,10 +383,64 @@ export function endingSummaryLines(state) {
   const lines = [
     { html: eduMajorHtml },
     `现金结余：${Math.round(state.money ?? 0)}${debt > 0 ? ` · 负债：${Math.round(debt)}` : ""}`,
-    `压力：${Number(state.stress ?? 0).toFixed(1)} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
+    `压力：${Number(state.stress ?? 0).toFixed(1)} / ${state.stressMax ?? 100} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
     `Offer 数量：${state.offers.length} · 累计投递：${state.appliedIds?.length ?? 0} 家`,
     `学习次数：${state.studyCount ?? 0} · 创业脑暴次数：${state.pathStartup ?? 0}`,
     `薪资档位加成：${state.salaryTierBonus ?? 0} · 隐藏倾向（简历/面试）：${Math.round(state.hiddenResume)} / ${Math.round(state.hiddenInterview)}`,
   ];
   return lines;
+}
+
+/**
+ * 纯文本，供结算页分享 / 复制（与 endingSummaryLines 数据一致，无 HTML）
+ * @param {{ pageUrl?: string }} [opts] 传入当前页 URL 时文末附带「在线游玩」一行
+ */
+export function buildEndingShareText(state, end, opts = {}) {
+  const emoji = getEndingEmoji(end?.id);
+  const parts = [];
+  parts.push(`【秋招模拟器】${emoji} ${end.title}`);
+  parts.push("");
+  parts.push(end.body);
+  parts.push("");
+  if (end?.id === "early_settle" && state?.day != null) {
+    parts.push(`本局提前结束于第 ${state.day} 天。`);
+    parts.push("");
+  }
+  const talNames = (state.playerTalents ?? []).map((t) => t.name).filter(Boolean);
+  if (talNames.length) {
+    parts.push(`天赋：${talNames.join("、")}`);
+    parts.push("");
+  }
+  const best = getBestOffer(state);
+  if (best) {
+    let salLine = best.salaryTier ?? "薪资面议";
+    if (best.salaryDisplayMultiplier && best.salaryDisplayMultiplier > 1) {
+      salLine += " · 虚张声势展示+20%";
+    }
+    const buff = state.industrySalaryBuff;
+    if (buff && buff.untilDay >= state.day && best.industry && buff.industry === best.industry) {
+      salLine += " · 行业风向+20%展示";
+    }
+    parts.push(`主 Offer：${best.logo ?? "💼"} ${best.name} · ${salLine}`);
+    const tg = Array.isArray(best.tags) && best.tags.length ? best.tags.join(" · ") : "（无标签展示）";
+    parts.push(`标签：${tg}`);
+    parts.push("");
+  }
+  const edu = state.traits?.education?.name ?? "";
+  const major = state.traits?.major?.name ?? "";
+  parts.push(`学历 / 专业：${edu} · ${major}`);
+  const debt = state.debt ?? 0;
+  parts.push(`现金结余：${Math.round(state.money ?? 0)}${debt > 0 ? ` · 负债：${Math.round(debt)}` : ""}`);
+  parts.push(
+    `压力：${Number(state.stress ?? 0).toFixed(1)} / ${state.stressMax ?? 100} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
+  );
+  parts.push(`Offer 数量：${state.offers.length} · 累计投递：${state.appliedIds?.length ?? 0} 家`);
+  parts.push(`学习次数：${state.studyCount ?? 0} · 创业脑暴次数：${state.pathStartup ?? 0}`);
+  parts.push(`薪资档位加成：${state.salaryTierBonus ?? 0} · 隐藏倾向（简历/面试）：${Math.round(state.hiddenResume)} / ${Math.round(state.hiddenInterview)}`);
+  const url = opts.pageUrl;
+  if (url) {
+    parts.push("");
+    parts.push(`在线游玩：${url}`);
+  }
+  return parts.join("\n");
 }
