@@ -1,9 +1,9 @@
 /**
  * 求职匹配分（类 ELO）+ 简历/面试通过率
  *
- * 通过率 ≈ 基础成功率(学历) × 简历完整度修正 × 公司通过难度修正(好/一般/坏词条) × 市场匹配(薪资档与学历) × 其他(隐藏数值、天赋等)
- * 薪资档抽样：ELO bias 与学历 tier 共同决定高斯中心（大专等低学历更易刷到低薪档）。
- * 待遇/风评词条：随当前薪资档分位 + 学历调整好坏权重（大专 + 低薪更易坏词条，大专 + 中薪更易一般词条）。
+ * 通过率 ≈ 基础成功率(学历) × 简历完整度修正 × 公司通过难度修正(好/一般/坏词条) × 市场匹配(薪资档与学历) × 分层微调(resumeStratifiedPassTune) × 其他(隐藏数值、天赋等)
+ * 薪资档抽样：高斯中心强锚定「该学历期望档」中位数，并与 ELO bias、完成度（最多约 +5 档≈+5w 右移）混合。
+ * 待遇/风评词条：随薪资档分位 + 学历调整权重；完成度低更易少绿词条、高更易多绿词条；分层微调抵消词条分布对期望通过率的系统性偏移。
  * 薪资条目的好/坏/一般仍计入 countTagQualities，与待遇、风评一起进公司通过难度修正。
  */
 
@@ -71,7 +71,7 @@ export function countTagQualities(tags) {
   let normal = 0;
   let bad = 0;
   const q = (x) => {
-    if (x === "good") good += 1;
+    if (x === "good" || x === "excellent") good += 1;
     else if (x === "bad") bad += 1;
     else normal += 1;
   };
@@ -178,11 +178,12 @@ function salaryLowWanFromCompany(company) {
   return salaryLowWanFromLabel(company.tags?.salary?.label ?? "");
 }
 
-/** 12w 以下坏、12w–18w（含12不含18）一般、18w 及以上好 */
+/** 12w 以下坏、12w–18w（含12不含18）一般、18w–25w（不含25）好、25w 及以上极好 */
 function salaryQualityFromAnnualLowWan(lowWan) {
   if (lowWan < 12) return "bad";
   if (lowWan < 18) return "normal";
-  return "good";
+  if (lowWan < 25) return "good";
+  return "excellent";
 }
 
 /** 211+理科 对特定薪资带的额外修正（乘性） */
@@ -195,18 +196,32 @@ function passMultiplier211Sci(state, company) {
 }
 
 /**
- * 向上投递：岗位薪资档高于当前学历期望中心档时，简历过筛期望 ×0.8。
- * 期望档与 marketAlignment 一致（targetSalaryTierIndexForEduTier）。
+ * 与刷新岗位时薪资高斯中心一致：学历锚点 + ELO + 简历完成度右移，表示「当前更容易刷到的」薪资档中心。
+ */
+function salarySampleMuForState(state) {
+  const bias = ratingToBias(state.jobSearchRating ?? INITIAL_RATING);
+  const eduTier = state?.traits?.education?.tier ?? 3;
+  const n = SALARY_BANDS_META.length;
+  const targetIdx = targetSalaryTierIndexForEduTier(eduTier);
+  const rq = resumeQualityNorm(state);
+  const spreadBase = (n - 1) * (0.48 + 0.22 * bias);
+  const legacyShift = educationSalaryMuShift(eduTier ?? 3);
+  let mu = 0.63 * targetIdx + 0.37 * (spreadBase + legacyShift);
+  mu += rq * 5;
+  return clamp(mu, 0.5, n - 1.5);
+}
+
+/**
+ * 向上投递：岗位薪资档高于「当前更容易刷到的薪资水平」（sample mu）时期望 ×0.8。
  * 传销隐藏 tag（hid_pyramid）不套用惩罚。
  */
 function upwardStretchResumePenaltyMult(state, company) {
   if (company.hiddenTag?.id === "hid_pyramid") return 1;
   const tags = company.tags;
   if (!tags?.salary) return 1;
-  const eduTier = state.traits?.education?.tier ?? 3;
-  const targetSal = targetSalaryTierIndexForEduTier(eduTier);
+  const mu = salarySampleMuForState(state);
   const salTier = tags.salary?.tier ?? 0;
-  if (salTier > targetSal) return 0.8;
+  if (salTier > mu) return 0.8;
   return 1;
 }
 
@@ -245,6 +260,8 @@ export function expectedResumePass(state, company, hiddenRevealed) {
   p *= upwardStretchResumePenaltyMult(state, company);
   if (hasTalent(state, "resume_red_flag")) p *= 0.89;
 
+  p *= resumeStratifiedPassTune(state, tags);
+
   return clamp(p, 0.02, 0.92);
 }
 
@@ -280,6 +297,8 @@ export function expectedInterviewPass(state, company, hiddenRevealed) {
   p *= thinnerBolderPassMult(state);
   if (hasTalent(state, "stage_fright")) p *= 0.87;
 
+  p *= resumeStratifiedPassTune(state, tags);
+
   return clamp(p, 0.025, 0.92);
 }
 
@@ -299,12 +318,13 @@ function educationSalaryMuShift(eduTier) {
   return m[eduTier] ?? 0;
 }
 
-function salaryWeightsFromBias(bias, eduTier) {
+/**
+ * 薪资抽样：强锚定「该学历期望档」中位数 + 匹配分扩散；简历完成度高时整体右移（最多约 +5 个薪资带，约 +5w）。
+ */
+function salaryWeightsForState(state, bias) {
   const n = SALARY_BANDS_META.length;
-  let mu = (n - 1) * (0.48 + 0.22 * bias);
-  mu += educationSalaryMuShift(eduTier ?? 3);
-  mu = clamp(mu, 0.5, n - 1.5);
-  const sigma = Math.max(3.85, 5.35 - 0.78 * Math.abs(bias));
+  const mu = salarySampleMuForState(state);
+  const sigma = Math.max(3.1, 4.9 - 0.7 * Math.abs(bias));
   const w = [];
   for (let i = 0; i < n; i++) {
     w.push(Math.exp(-0.5 * ((i - mu) / sigma) * ((i - mu) / sigma)));
@@ -312,9 +332,9 @@ function salaryWeightsFromBias(bias, eduTier) {
   return w;
 }
 
-function pickSalaryIndexByRating(seed, rating, eduTier) {
-  const bias = ratingToBias(rating);
-  const w = salaryWeightsFromBias(bias, eduTier);
+function pickSalaryIndexByRating(seed, state) {
+  const bias = ratingToBias(state.jobSearchRating ?? INITIAL_RATING);
+  const w = salaryWeightsForState(state, bias);
   const sum = w.reduce((a, b) => a + b, 0);
   let r = ((hashSeed(seed) >>> 0) / 4294967296 + rnd() * 0.12) % 1;
   r *= sum;
@@ -323,6 +343,53 @@ function pickSalaryIndexByRating(seed, rating, eduTier) {
     if (r <= 0) return i;
   }
   return w.length - 1;
+}
+
+/** 低完成度更易刷到绿词条较少岗位，高完成度更易刷到绿词条较多岗位（待遇+风评池内权重） */
+function resumeStratifiedTagMultipliers(state) {
+  const rq = resumeQualityNorm(state);
+  return {
+    goodPull: 0.48 + 0.62 * rq,
+    badPull: 1.24 - 0.44 * rq,
+    normalPull: 0.88 + 0.22 * rq,
+  };
+}
+
+/** 风评条数：低完成度侧重 1～2 条，高完成度侧重 2～4 条，便于出现「1～2 绿 / 2～3 绿」组合 */
+function pickReputationCountForResume(u, rq) {
+  if (rq < 0.34) {
+    if (u < 0.36) return 1;
+    if (u < 0.76) return 2;
+    if (u < 0.91) return 3;
+    if (u < 0.98) return 4;
+    return 5;
+  }
+  if (rq > 0.66) {
+    if (u < 0.1) return 1;
+    if (u < 0.3) return 2;
+    if (u < 0.64) return 3;
+    if (u < 0.88) return 4;
+    return 5;
+  }
+  if (u < 0.2) return 1;
+  if (u < 0.44) return 2;
+  if (u < 0.68) return 3;
+  if (u < 0.86) return 4;
+  return 5;
+}
+
+/**
+ * 轻度补偿：使分层词条后 cmod 相对「该完成度下典型绿词条数」不过度偏离，保持投递/面试概率总体浮动区间稳定。
+ */
+function resumeStratifiedPassTune(state, tags) {
+  const rq = resumeQualityNorm(state);
+  const cmod = companyTagPassModifier(tags);
+  const gStar = 1.4 + 0.92 * rq;
+  const bStar = Math.max(0.12, 0.4 - 0.12 * rq);
+  const cStar = clamp(1.06 - 0.09 * gStar + 0.06 * bStar, 0.42, 1.32);
+  const mix = 0.22;
+  const r = (1 - mix) + mix * (cStar / cmod);
+  return clamp(r, 0.93, 1.07);
 }
 
 function weightedChoose(items, seed) {
@@ -379,38 +446,35 @@ function tagQualityWeightsForEducationSalary(eduTier, salIdx) {
   return { goodBoost, normalBoost, badBoost };
 }
 
-function pickTreatmentByRating(seed, rating, salIdx, eduTier) {
+function pickTreatmentByRating(state, seed, rating, salIdx, eduTier) {
   const rb = ratingToBias(rating);
   const shift = 1 + 0.35 * rb;
   const tw = tagQualityWeightsForEducationSalary(eduTier ?? 3, salIdx);
+  const rs = resumeStratifiedTagMultipliers(state);
   const items = TREATMENT_TAGS.map((x) => {
     let w = 1;
-    if (x.quality === "good") w *= shift * tw.goodBoost;
-    else if (x.quality === "bad") w *= (2 - shift) * tw.badBoost;
-    else w *= tw.normalBoost;
+    if (x.quality === "good" || x.quality === "excellent") w *= shift * tw.goodBoost * rs.goodPull;
+    else if (x.quality === "bad") w *= (2 - shift) * tw.badBoost * rs.badPull;
+    else w *= tw.normalBoost * rs.normalPull;
     return { item: x, w: Math.max(0.06, w) };
   });
   const raw = weightedChoose(items, seed + 1000);
   return { id: raw.id, label: raw.label, quality: raw.quality };
 }
 
-function pickReputationSet(seed, rating, salIdx, eduTier) {
-  /** 1–5 条风评（种子决定）；与传销追加叠加后仍可能落在 4–5 条，避免「条数=传销」的可推测性 */
+function pickReputationSet(state, seed, rating, salIdx, eduTier) {
+  const rq = resumeQualityNorm(state);
   const u = (hashSeed(seed + 7) >>> 0) / 4294967296;
-  let count;
-  if (u < 0.2) count = 1;
-  else if (u < 0.44) count = 2;
-  else if (u < 0.68) count = 3;
-  else if (u < 0.86) count = 4;
-  else count = 5;
+  const count = pickReputationCountForResume(u, rq);
   const rb = ratingToBias(rating);
   const shift = 1 + 0.4 * rb;
   const tw = tagQualityWeightsForEducationSalary(eduTier ?? 3, salIdx);
+  const rs = resumeStratifiedTagMultipliers(state);
   let pool = REPUTATION_TAGS.map((x) => {
     let w = 1;
-    if (x.quality === "good") w *= shift * tw.goodBoost;
-    else if (x.quality === "bad") w *= (2 - shift) * tw.badBoost;
-    else w *= tw.normalBoost;
+    if (x.quality === "good" || x.quality === "excellent") w *= shift * tw.goodBoost * rs.goodPull;
+    else if (x.quality === "bad") w *= (2 - shift) * tw.badBoost * rs.badPull;
+    else w *= tw.normalBoost * rs.normalPull;
     return { x, w: Math.max(0.06, w) };
   });
   const out = [];
@@ -516,7 +580,12 @@ function materializeNetaCompany(state, shell) {
 /** 上帝模式：顶配薪资 + 全好标签、无隐藏雷 */
 function materializeCompanyGodMode(shell) {
   const top = SALARY_BANDS_META[SALARY_BANDS_META.length - 1];
-  const salary = { id: top.id, label: top.label, tier: top.tier, quality: "good" };
+  const salary = {
+    id: top.id,
+    label: top.label,
+    tier: top.tier,
+    quality: salaryQualityFromAnnualLowWan(salaryLowWanFromLabel(top.label)),
+  };
   const treatment = { id: "tr_weekend", label: "双休", quality: "good" };
   const reputation = [
     { id: "rep_leader", label: "行业龙头", quality: "good" },
@@ -548,7 +617,7 @@ export function materializeCompany(state, shell) {
   const rating = state.jobSearchRating;
   const seed = shell.baseSeed;
   const eduTier = state.traits?.education?.tier ?? 3;
-  let salIdx = pickSalaryIndexByRating(seed, rating, eduTier);
+  let salIdx = pickSalaryIndexByRating(seed, state);
   if (is211Science(state)) {
     const r = rnd();
     if (r < 0.42) {
@@ -569,8 +638,8 @@ export function materializeCompany(state, shell) {
     quality: salaryQualityFromAnnualLowWan(salaryLowWanFromLabel(salMeta.label)),
   };
 
-  const treatment = pickTreatmentByRating(seed + 1000, rating, salIdx, eduTier);
-  const reputation = pickReputationSet(seed + 2000, rating, salIdx, eduTier);
+  const treatment = pickTreatmentByRating(state, seed + 1000, rating, salIdx, eduTier);
+  const reputation = pickReputationSet(state, seed + 2000, rating, salIdx, eduTier);
   const tags = { salary, treatment, reputation };
 
   const hasHidden = rnd() < 0.4;

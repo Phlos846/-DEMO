@@ -217,7 +217,8 @@ export function sortOffersBySalary(offers, state) {
   const bonus = state?.salaryTierBonus ?? 0;
   const rank = (s) => {
     let r = 0;
-    if (s.includes("30w")) r = 5;
+    if (s.includes("32万")) r = 6;
+    else if (s.includes("30w")) r = 5;
     else if (s.includes("25k")) r = 4;
     else if (s.includes("18k")) r = 3;
     else if (s.includes("12k")) r = 2;
@@ -239,6 +240,7 @@ export function getBestOffer(state) {
 }
 
 function tagQualityZh(q) {
+  if (q === "excellent") return "极好";
   if (q === "good") return "好";
   if (q === "bad") return "坏";
   return "一般";

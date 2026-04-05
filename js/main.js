@@ -766,6 +766,7 @@ function bindMainActions() {
 
 function qualityLabel(q) {
   if (q === "bad") return "坏";
+  if (q === "excellent") return "极好";
   if (q === "good") return "好";
   return "一般";
 }

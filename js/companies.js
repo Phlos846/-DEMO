@@ -134,7 +134,7 @@ export function generateCompanyName(seed) {
   return `${a}${b}${suf}`;
 }
 
-/** 薪资档：4.5-6 万起，每 1w 一阶，直至 28-30w */
+/** 薪资档：4.5-6 万起，每 1w 一阶，直至 30-32w 封顶 */
 export function buildSalaryBands() {
   const bands = [];
   bands.push({ id: "sal_45_6", label: "年薪4.5万-6万", tier: 0 });
@@ -146,6 +146,7 @@ export function buildSalaryBands() {
     });
   }
   bands.push({ id: "sal_28_30", label: "年薪28万-30万", tier: 24 });
+  bands.push({ id: "sal_30_32", label: "年薪30万-32万", tier: 25 });
   return bands;
 }
 
@@ -203,6 +204,7 @@ export const HIDDEN_POOL = [
 ];
 
 export function qualityScore(q) {
+  if (q === "excellent") return 3;
   if (q === "good") return 2;
   if (q === "bad") return -2;
   return 0;
@@ -257,6 +259,7 @@ export function salaryLowWanFromTierLabel(label) {
 
 function baseStarsFromSalaryQuality(quality) {
   if (quality === "bad") return 1;
+  if (quality === "excellent") return 4;
   if (quality === "good") return 3;
   return 2;
 }
@@ -264,11 +267,12 @@ function baseStarsFromSalaryQuality(quality) {
 function baseStarsFromLowWan(lowWan) {
   if (lowWan < 12) return 1;
   if (lowWan < 18) return 2;
-  return 3;
+  if (lowWan < 25) return 3;
+  return 4;
 }
 
 /**
- * 结算页公司评分：年薪档 1–3 星（差/一般/高），年薪以外每个绿 tag +1、红 tag -1；传销 Offer 固定 0 星。
+ * 结算页公司评分：年薪档 1–4 星（差/一般/高/极高对应坏/一般/好/极好），年薪以外每个绿 tag +1、红 tag -1；传销 Offer 固定 0 星。
  * stars 可为负；结算 UI 用红色星显示负分的绝对值。
  * @returns {{ stars: number, colorful: boolean, isPyramid: boolean }}
  */
@@ -289,13 +293,13 @@ export function computeEndOfferStarRating(offer) {
   if (st?.parts?.length > 1) {
     for (let i = 1; i < st.parts.length; i++) {
       const q = st.parts[i].quality ?? "normal";
-      if (q === "good") tagDelta += 1;
+      if (q === "good" || q === "excellent") tagDelta += 1;
       else if (q === "bad") tagDelta -= 1;
     }
   }
   if (st?.hidden) {
     const q = st.hidden.quality ?? "normal";
-    if (q === "good") tagDelta += 1;
+    if (q === "good" || q === "excellent") tagDelta += 1;
     else if (q === "bad") tagDelta -= 1;
   }
   const stars = base + tagDelta;
