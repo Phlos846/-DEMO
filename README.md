@@ -81,7 +81,7 @@ python -m http.server 8765
 
 - **无框架**：模块化 ES Modules，便于单文件职责清晰（状态、匹配、事件、结局、图鉴等拆分）。
 - **构建**：可选脚本将多文件打 bundle（见 `build-bundle.ps1` / `build_bundle.py`），按需使用。
--**AI**：本项目使用Cursor一键生成代码——100%AI，当然，设计还是人做的。
+- **AI**：本项目使用Cursor一键生成代码——100%AI，当然，设计还是人做的。
 ---
 
 ## 致谢与许可
