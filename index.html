@@ -56,8 +56,6 @@
         <p>匹配分 <span id="match-rating">1500</span> · 简历过筛倾向 <span id="hid-resume">50</span> · 面试发挥 <span id="hid-interview">45</span></p>
       </div>
 
-      <div id="interview-banner" class="banner hidden"></div>
-
       <div class="actions card">
         <h2>今日安排</h2>
         <p class="hint">除「学习」消耗 <strong>2</strong> 行动点外，其余每项消耗 1 行动点；用尽后可结束本日，或<strong>每日限一次</strong>透支再行动 1 点。透支后，下次进入下一日时将<strong>不获得跨日精力恢复</strong>并<strong>额外 -15 精力</strong>。</p>
@@ -76,6 +74,8 @@
           <button type="button" id="btn-overdraft" class="secondary hidden">透支：再行动 1 次（本日限 1 次）</button>
         </div>
       </div>
+
+      <div id="interview-banner" class="banner hidden"></div>
 
       <div class="card">
         <h2>Offer</h2>
@@ -108,7 +108,7 @@
     <section id="screen-offer-pick" class="screen hidden">
       <div class="card offer-pick-card">
         <h2>选择本局主 Offer</h2>
-        <p class="hint">用于结局判定与结算页展示。词条与隐藏信息仅在<strong>最终结算</strong>时完整显示；此处请勿依赖标签判断风险。</p>
+        <p class="hint">用于结局判定与结算页展示。下方列出各 Offer 全部词条；若在投递前未<strong>侧面打听</strong>，隐藏词条以「？」显示。</p>
         <div id="offer-pick-list" class="offer-pick-list" role="radiogroup" aria-label="主 Offer"></div>
         <button type="button" id="btn-offer-pick-confirm" class="primary" disabled>确认选择</button>
       </div>
