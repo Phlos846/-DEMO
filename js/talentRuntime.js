@@ -377,12 +377,12 @@ export function getEndingTalentNumericHints(state) {
       else if (rq <= 50) m = 2 + (rq - 1) * slope;
       else m = 1.2 + (rq - 50) * slope;
     }
-    hints.push(`越薄越勇：期望乘区 ×${m.toFixed(2)}（完整度 0→0，1→2，50→1.2，线性）`);
+    hints.push(`越薄越勇：期望乘区 ×${m.toFixed(2)}（综合素质 0→0，1→2，50→1.2，线性）`);
   }
   const sb = talentStudyBonus(state);
   if (sb.hiddenResume || sb.hiddenInterview || sb.resumeQuality) {
     hints.push(
-      `「学习」额外：隐藏简历+${sb.hiddenResume} · 隐藏面试+${sb.hiddenInterview} · 完整度+${sb.resumeQuality}`,
+      `「学习」额外：隐藏简历+${sb.hiddenResume} · 隐藏面试+${sb.hiddenInterview} · 综合素质+${sb.resumeQuality}`,
     );
   }
   const ad = talentApplyEnergyDiscount(state);

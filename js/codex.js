@@ -4,12 +4,14 @@
 import { PERSONALITIES, OTHER_TRAITS } from "./traits.js";
 import { TALENTS, RARITY_CLASS, escapeHtml } from "./talents.js";
 import { EVENT_DEFS } from "./events.js";
+import { FOLLOW_UP_EVENTS } from "./eventChoices.js";
 import { ENDING_CATALOG, getEndingEmoji } from "./endings.js";
 
 const STORAGE_KEY = "ar_codex_v1";
 
 /** 与 EVENT_DEFS 并列计入事件图鉴总数（学习衍生弹窗） */
 export const CODEX_EXTRA_EVENTS = [
+  ...FOLLOW_UP_EVENTS,
   {
     id: "evt_study_overload",
     emoji: "🧠",
@@ -122,7 +124,7 @@ export function unlockTalentsFromState(talents) {
 function formatOtherEffects(effects) {
   if (!effects || typeof effects !== "object") return "";
   const labels = {
-    resumeQuality: "简历完整度",
+    resumeQuality: "综合素质",
     hiddenResume: "简历过筛",
     hiddenInterview: "面试发挥",
     salaryTierBonus: "薪资档位加成",

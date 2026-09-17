@@ -1,10 +1,6 @@
 /**
- * 求职匹配分（类 ELO）+ 简历/面试通过率
- *
- * 通过率 ≈ 基础成功率(学历) × 简历完整度修正 × 公司通过难度修正(好/一般/坏词条) × 市场匹配(薪资档与学历) × 分层微调(resumeStratifiedPassTune) × 其他(隐藏数值、天赋等)
- * 薪资档抽样：高斯中心强锚定「该学历期望档」中位数，并与 ELO bias、完成度（最多约 +5 档≈+5w 右移）混合。
- * 待遇/风评词条：随薪资档分位 + 学历调整权重；完成度低更易少绿词条、高更易多绿词条；分层微调抵消词条分布对期望通过率的系统性偏移。
- * 薪资条目的好/坏/一般仍计入 countTagQualities，与待遇、风评一起进公司通过难度修正。
+ * 求职匹配分与通过率：学历 × 综合素质 × 招聘要求及竞争 × 薪资匹配 × 隐藏属性及天赋。
+ * 面试额外受低精力、高压力影响。待遇与风评决定公司品质，不直接决定招聘难度。
  */
 
 import {
@@ -17,6 +13,7 @@ import {
   hashSeed,
   pickSeeded,
 } from "./companies.js";
+import { getRecruitmentProfile, recruitmentModifier, interviewConditionModifier } from "./recruitment.js";
 import { hasTalent } from "./talents.js";
 import { talentPassBonus } from "./talentRuntime.js";
 import { getNetaPresetById } from "./netaCompanies.js";
@@ -33,8 +30,8 @@ function resumeQualityNorm(state) {
 }
 
 /**
- * 蓝色天赋「越薄越勇」：按当前简历完整度（绝对值，相对 resumeQualityMax）分段线性。
- * 完成度 0 → 乘区 0；0–1 → 0→2；1–50 → 2→1.2；50 以上按同斜率延伸。
+ * 蓝色天赋「越薄越勇」：按当前综合素质（绝对值，相对 resumeQualityMax）分段线性。
+ * 综合素质 0 → 乘区 0；0–1 → 0→2；1–50 → 2→1.2；50 以上按同斜率延伸。
  */
 function thinnerBolderPassMult(state) {
   if (!hasTalent(state, "thinner_bolder")) return 1;
@@ -82,14 +79,7 @@ export function countTagQualities(tags) {
   return { good, normal, bad };
 }
 
-/**
- * 公司通过难度修正：仅由好/一般/坏词条数量决定；好词条越多修正越低（通过越难）。
- */
-export function companyTagPassModifier(tags) {
-  const { good, bad } = countTagQualities(tags);
-  const mod = 1.06 - 0.09 * good + 0.06 * bad;
-  return clamp(mod, 0.42, 1.32);
-}
+
 
 /** 学历越高基础成功率越高（与 traits 中学历 tier 对应）；表内系数读出后统一 ×1.1；含硕士/博士附加学历时基础 ×1.2；最后统一 ×0.9。简历过筛在 expectedResumePass 内再 ×1.05（各学位投递基础 +5%）。 */
 function educationBasePassRate(state) {
@@ -117,8 +107,8 @@ function educationBasePassRate(state) {
 }
 
 /**
- * 简历完整度修正：完成度 30/120（满值 25%）时因子为 1，满值（100%）时为 1.8，其间线性。
- * rq = 当前完整度 / 上限。
+ * 综合素质修正：综合素质 30/120（满值 25%）时因子为 1，满值（100%）时为 1.8，其间线性。
+ * rq = 当前综合素质 / 上限。
  */
 function resumeQualityPassModifier(state) {
   const rq = resumeQualityNorm(state);
@@ -155,13 +145,9 @@ function marketAlignmentMod(state, company) {
   return 0.92 + 0.16 * align;
 }
 
-/** 供 UI / 难度展示：词条越好（通过越容易）则难度数值越低 */
+/** 招聘难度归一化，仅用于展示。 */
 export function computeCompanyDifficulty(company) {
-  const tags = company.tags;
-  if (!tags) return 0.5;
-  const cmod = companyTagPassModifier(tags);
-  const t = (cmod - 0.42) / (1.32 - 0.42);
-  return clamp(0.88 - 0.76 * t, 0.12, 0.94);
+  return clamp((1.1232 - recruitmentModifier(company)) / (1.1232 - .72), 0, 1);
 }
 
 function is211Science(state) {
@@ -196,7 +182,7 @@ function passMultiplier211Sci(state, company) {
 }
 
 /**
- * 与刷新岗位时薪资高斯中心一致：学历锚点 + ELO + 简历完成度右移，表示「当前更容易刷到的」薪资档中心。
+ * 与刷新岗位时薪资高斯中心一致：学历锚点 + ELO + 综合素质右移，表示「当前更容易刷到的」薪资档中心。
  */
 function salarySampleMuForState(state) {
   const bias = ratingToBias(state.jobSearchRating ?? INITIAL_RATING);
@@ -232,7 +218,7 @@ export function expectedResumePass(state, company, hiddenRevealed) {
   if (!tags) return 0.02;
 
   const base = educationBasePassRate(state) * 1.05;
-  const cmod = companyTagPassModifier(tags);
+  const cmod = recruitmentModifier(company);
   const resumeMod = resumeQualityPassModifier(state);
   const hidMod = hiddenResumePassModifier(state);
   const marketMod = marketAlignmentMod(state, company);
@@ -260,7 +246,6 @@ export function expectedResumePass(state, company, hiddenRevealed) {
   p *= upwardStretchResumePenaltyMult(state, company);
   if (hasTalent(state, "resume_red_flag")) p *= 0.89;
 
-  p *= resumeStratifiedPassTune(state, tags);
 
   return clamp(p, 0.02, 0.92);
 }
@@ -269,10 +254,10 @@ export function expectedInterviewPass(state, company, hiddenRevealed) {
   if (state.godMode) return 1;
   if (company.hiddenTag?.id === "hid_pyramid") return 1;
   const tags = company.tags;
-  if (!tags) return 0.025;
+  if (!tags) return 0.025 * interviewConditionModifier(state);
 
   const base = educationBasePassRate(state);
-  const cmod = companyTagPassModifier(tags);
+  const cmod = recruitmentModifier(company);
   const resumeMod = resumeQualityPassModifier(state);
   const hidMod = hiddenInterviewPassModifier(state);
   const marketMod = marketAlignmentMod(state, company);
@@ -297,9 +282,8 @@ export function expectedInterviewPass(state, company, hiddenRevealed) {
   p *= thinnerBolderPassMult(state);
   if (hasTalent(state, "stage_fright")) p *= 0.87;
 
-  p *= resumeStratifiedPassTune(state, tags);
 
-  return clamp(p, 0.025, 0.92);
+  return clamp(p, 0.025, 0.92) * interviewConditionModifier(state);
 }
 
 export function updateJobSearchRating(state, expectedProb, actualOne) {
@@ -319,7 +303,7 @@ function educationSalaryMuShift(eduTier) {
 }
 
 /**
- * 薪资抽样：强锚定「该学历期望档」中位数 + 匹配分扩散；简历完成度高时整体右移（最多约 +5 个薪资带，约 +5w）。
+ * 薪资抽样：强锚定「该学历期望档」中位数 + 匹配分扩散；综合素质高时整体右移（最多约 +5 个薪资带，约 +5w）。
  */
 function salaryWeightsForState(state, bias) {
   const n = SALARY_BANDS_META.length;
@@ -345,7 +329,7 @@ function pickSalaryIndexByRating(seed, state) {
   return w.length - 1;
 }
 
-/** 低完成度更易刷到绿词条较少岗位，高完成度更易刷到绿词条较多岗位（待遇+风评池内权重） */
+/** 低综合素质更易刷到绿词条较少岗位，高综合素质更易刷到绿词条较多岗位（待遇+风评池内权重） */
 function resumeStratifiedTagMultipliers(state) {
   const rq = resumeQualityNorm(state);
   return {
@@ -355,7 +339,7 @@ function resumeStratifiedTagMultipliers(state) {
   };
 }
 
-/** 风评条数：低完成度侧重 1～2 条，高完成度侧重 2～4 条，便于出现「1～2 绿 / 2～3 绿」组合 */
+/** 风评条数：低综合素质侧重 1～2 条，高综合素质侧重 2～4 条，便于出现「1～2 绿 / 2～3 绿」组合 */
 function pickReputationCountForResume(u, rq) {
   if (rq < 0.34) {
     if (u < 0.36) return 1;
@@ -378,19 +362,7 @@ function pickReputationCountForResume(u, rq) {
   return 5;
 }
 
-/**
- * 轻度补偿：使分层词条后 cmod 相对「该完成度下典型绿词条数」不过度偏离，保持投递/面试概率总体浮动区间稳定。
- */
-function resumeStratifiedPassTune(state, tags) {
-  const rq = resumeQualityNorm(state);
-  const cmod = companyTagPassModifier(tags);
-  const gStar = 1.4 + 0.92 * rq;
-  const bStar = Math.max(0.12, 0.4 - 0.12 * rq);
-  const cStar = clamp(1.06 - 0.09 * gStar + 0.06 * bStar, 0.42, 1.32);
-  const mix = 0.22;
-  const r = (1 - mix) + mix * (cStar / cmod);
-  return clamp(r, 0.93, 1.07);
-}
+
 
 function weightedChoose(items, seed) {
   const sum = items.reduce((s, x) => s + x.w, 0);
@@ -606,6 +578,7 @@ function materializeCompanyGodMode(shell) {
  * 按当前匹配分生成/刷新公司标签与难度（同一职位每次进入投递序列时随匹配分更新）
  */
 export function materializeCompany(state, shell) {
+  shell.recruitment = getRecruitmentProfile(shell);
   if (shell.isNetaRef && shell.netaPresetId) {
     materializeNetaCompany(state, shell);
     return;

@@ -32,6 +32,7 @@ export function startApplySession(state) {
     order,
     index: 0,
     submitted: 0,
+    viewedCount: 0,
     target: 10,
     currentRevealed: false,
     materializedIndex: -1,
@@ -43,6 +44,7 @@ export function getCurrentCompany(state) {
   const s = state.applySession;
   if (!s) return null;
   const co = s.order[s.index] ?? null;
+  if (co && !applySessionComplete(state)) s.viewedCount = Math.max(s.viewedCount ?? 0, s.index + 1);
   if (co && s.materializedIndex !== s.index) {
     materializeCompany(state, co);
     s.materializedIndex = s.index;
@@ -121,9 +123,7 @@ export function applySessionComplete(state) {
   const s = state.applySession;
   if (!s) return true;
   if (s.submitted >= s.target) return true;
-  const remaining = s.order.length - s.index;
-  const need = s.target - s.submitted;
-  return remaining < need;
+  return s.index >= s.order.length;
 }
 
 export function endApplySession(state) {
@@ -131,7 +131,7 @@ export function endApplySession(state) {
   if (s && s.submitted > 0) {
     const bump = 1 + Math.floor(Math.random() * 2);
     state.resumeQuality = clampResumeToCap(state, state.resumeQuality + bump);
-    addLog(state, `第 ${state.day} 天：本轮投递结束，简历完整度 +${bump}。`);
+    addLog(state, `第 ${state.day} 天：本轮投递结束，综合素质 +${bump}。`);
   }
   state.applySession = null;
 }

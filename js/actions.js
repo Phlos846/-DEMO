@@ -132,7 +132,7 @@ export function applyDailyAction(state, actionId) {
     if (hadOverloadDebuff) {
       state.studyCountWhileOverloadDebuff = (state.studyCountWhileOverloadDebuff ?? 0) + 1;
     }
-    return "学习：精力下降，简历完整度与隐藏通过率变化。";
+    return "学习：精力下降，综合素质与隐藏通过率变化。";
   }
   if (actionId === "apply") {
     applyEnergyDelta(state, c.energy ?? 0);

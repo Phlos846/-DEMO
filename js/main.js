@@ -1,4 +1,7 @@
+import { recruitmentLabel } from "./recruitment.js";
 import { createInitialState, addLog } from "./state.js";
+import { getEventInteraction, eventChoiceUnavailable } from "./eventChoices.js";
+import { recordEventAppearance } from "./eventRecurrence.js";
 import { educationTagClass } from "./eduTags.js";
 import { formatRolledTraitsLog, rollAllTraits } from "./traits.js";
 import {
@@ -30,6 +33,7 @@ import {
 import {
   planEventsForCurrentDay,
   resolveEvent,
+  beginEvent,
   pickRandomEntertainmentEvent,
   tryStudyOverloadEvent,
   tryStudyBreakthroughEvent,
@@ -66,6 +70,7 @@ import {
 
 let state = null;
 let pendingEvent = null;
+let eventResult = null;
 /** 最近一次结算结局，供分享文案使用 */
 let lastEndingForShare = null;
 /** 开局界面预览用（与正式开局同一引用，天才天赋会在开局时改写学历） */
@@ -420,13 +425,69 @@ function runMorningPhase() {
 }
 
 function openFirstEventModalFromQueue() {
-  if (!state?.eventModalQueue?.length) return;
-  pendingEvent = state.eventModalQueue.shift();
+  if (!state?.eventModalQueue?.length || state.gameOver) return;
+  showEventModal(state.eventModalQueue.shift());
+}
+
+function showEventModal(event) {
+  recordEventAppearance(state, event);
+  pendingEvent = event;
+  eventResult = null;
+  const interaction = getEventInteraction(event);
+  const started = beginEvent(state, event);
+  $("event-cost-note")?.classList.toggle("hidden", interaction.mode === "notice" || started.terminal);
+  if (event.id) unlockEvent(event.id);
   $("event-title").textContent = pendingEvent.title;
-  $("event-desc").textContent = pendingEvent.desc;
+  $("event-desc").textContent = interaction.prompt;
   const emo = $("event-emoji");
   if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
+  const choices = $("event-choices");
+  choices.replaceChildren();
+  choices.classList.remove("hidden");
+  $("event-result").classList.add("hidden");
+  $("btn-event-ok").classList.add("hidden");
+  if (started.summary) {
+    $("event-result").textContent = `已发生：${started.summary}。`;
+    $("event-result").classList.remove("hidden");
+  }
+  if (started.result) {
+    eventResult = started.result;
+    choices.classList.add("hidden");
+    $("btn-event-ok").classList.remove("hidden");
+    if (eventResult.immediateSettle || started.terminal) {
+      $("event-result").textContent += "继续后进入本局结局。";
+    }
+    $("modal-event").classList.remove("hidden");
+    $("btn-event-ok").focus();
+    return;
+  }
+  for (const selected of interaction.choices) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "event-choice secondary";
+    const reason = eventChoiceUnavailable(state, selected);
+    button.disabled = !!reason;
+    const title = document.createElement("strong");
+    title.textContent = selected.label + (reason ? `（${reason}）` : "");
+    const hint = document.createElement("small");
+    hint.textContent = selected.hint;
+    button.append(title, hint);
+    button.addEventListener("click", () => {
+      if (pendingEvent !== event || eventResult || state.gameOver) return;
+      const result = resolveEvent(state, event, selected.id);
+      if (!result.ok) return;
+      eventResult = result;
+      if (event.id) unlockEvent(event.id);
+      choices.classList.add("hidden");
+      $("event-result").textContent = `${started.summary ? `先前影响：${started.summary}。` : ""}你选择了「${result.label}」。${result.summary}。${result.immediateSettle ? "继续后进入本局结局。" : ""}`;
+      $("event-result").classList.remove("hidden");
+      $("btn-event-ok").classList.remove("hidden");
+      $("btn-event-ok").focus();
+    });
+    choices.appendChild(button);
+  }
   $("modal-event").classList.remove("hidden");
+  choices.querySelector("button:not(:disabled)")?.focus();
 }
 
 function showNextInterviewResultModal() {
@@ -446,11 +507,11 @@ function showNextInterviewResultModal() {
 }
 
 function closeEventModal() {
+  if (!eventResult) return;
   if (pendingEvent && state) {
-    if (pendingEvent.id) unlockEvent(pendingEvent.id);
-    const settleNow = pendingEvent.immediateSettle;
-    resolveEvent(state, pendingEvent);
+    const settleNow = eventResult.immediateSettle;
     pendingEvent = null;
+    eventResult = null;
     if (settleNow) {
       state.gameOver = true;
       state.eventModalQueue = [];
@@ -464,7 +525,6 @@ function closeEventModal() {
   }
   if (state?.eventModalQueue?.length) {
     openFirstEventModalFromQueue();
-    refreshMain();
     return;
   }
   $("modal-event").classList.add("hidden");
@@ -560,12 +620,16 @@ function renderOfferPickScreen() {
   const offers = state.offers;
   list.innerHTML = offers
     .map(
-      (o, i) => `<label class="offer-pick-row">
+      (o, i) => `<div class="offer-pick-option"><label class="offer-pick-row">
   <input type="radio" name="offer-pick" value="${i}" />
   <span class="offer-pick-main"><span class="offer-pick-logo" aria-hidden="true">${o.logo ?? "💼"}</span>
   <span class="offer-pick-name">${escapeHtml(o.name ?? "")}</span>
   <span class="offer-pick-tier muted">${escapeHtml(o.salaryTier ?? "薪资面议")}</span></span>
-</label>`,
+</label>
+<details class="offer-pick-details">
+  <summary>查看「${escapeHtml(o.name ?? "该公司")}」的词条</summary>
+  <div class="end-best-tags">${buildEndOfferTagsHtml(o, !!o.hiddenRevealed)}</div>
+</details></div>`,
     )
     .join("");
   if (btn) btn.disabled = true;
@@ -705,12 +769,7 @@ function bindMainActions() {
         if (Math.random() < 0.2 && !state.gameOver) {
           const bonus = pickRandomEntertainmentEvent(state);
           if (bonus) {
-            pendingEvent = bonus;
-            $("event-title").textContent = bonus.title;
-            $("event-desc").textContent = bonus.desc;
-            const emo = $("event-emoji");
-            if (emo) emo.textContent = bonus.emoji ?? "🎮";
-            $("modal-event").classList.remove("hidden");
+            showEventModal(bonus);
           }
         }
         return;
@@ -729,12 +788,7 @@ function bindMainActions() {
         const breakthrough = tryStudyBreakthroughEvent(state);
         const ev = breakthrough ?? tryStudyOverloadEvent(state);
         if (ev) {
-          pendingEvent = ev;
-          $("event-title").textContent = ev.title;
-          $("event-desc").textContent = ev.desc;
-          const emoEv = $("event-emoji");
-          if (emoEv) emoEv.textContent = ev.emoji ?? "📋";
-          $("modal-event").classList.remove("hidden");
+          showEventModal(ev);
         }
       }
     });
@@ -762,6 +816,18 @@ function bindMainActions() {
   }
 
   $("btn-event-ok").addEventListener("click", closeEventModal);
+  $("modal-event").addEventListener("keydown", (event) => {
+    if (event.key !== "Tab") return;
+    const buttons = [...$("modal-event").querySelectorAll("button:not(:disabled)")]
+      .filter(button => button.offsetParent !== null);
+    const first = buttons[0], last = buttons[buttons.length - 1];
+    if (!first) return;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault(); last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault(); first.focus();
+    }
+  });
 }
 
 function qualityLabel(q) {
@@ -806,7 +872,7 @@ function renderEndCompanyRating(best) {
 }
 
 /** 结算页主 Offer：带好坏一般色；含隐藏词条（仅结算展示） */
-function buildEndOfferTagsHtml(best) {
+function buildEndOfferTagsHtml(best, revealHidden = true) {
   const st = best.settlementTags;
   if (!st?.parts?.length && !st?.hidden) {
     return Array.isArray(best.tags) && best.tags.length
@@ -821,9 +887,9 @@ function buildEndOfferTagsHtml(best) {
     );
   }
   if (st.hidden) {
-    const q = st.hidden.quality ?? "normal";
+    const q = revealHidden ? st.hidden.quality ?? "normal" : "normal";
     bits.push(
-      `<span class="tag end-offer-tag end-offer-tag--hidden"><span class="end-offer-tag-prefix">隐藏</span><span class="end-offer-tag-label">${escapeHtml(st.hidden.label)}</span><span class="tag-quality tag-q-${q}">${qualityLabel(q)}</span></span>`,
+      `<span class="tag end-offer-tag end-offer-tag--hidden"><span class="end-offer-tag-prefix">隐藏</span><span class="end-offer-tag-label">${revealHidden ? escapeHtml(st.hidden.label) : "？（投递前未侧面打听）"}</span>${revealHidden ? `<span class="tag-quality tag-q-${q}">${qualityLabel(q)}</span>` : ""}</span>`,
     );
   }
   return bits.join(" ");
@@ -838,6 +904,8 @@ function renderApplyScreen() {
   if (ae) ae.textContent = String(Math.round(state.energy));
   if (aem) aem.textContent = String(state.energyMax ?? 100);
   $("apply-count").textContent = String(s.submitted);
+  $("apply-viewed").textContent = String(s.viewedCount ?? 0);
+  $("apply-total").textContent = String(s.order.length);
   const view = $("company-view");
   const btnApply = $("btn-apply-co");
   const btnNext = $("btn-next-co");
@@ -848,17 +916,19 @@ function renderApplyScreen() {
     view.innerHTML =
       s.submitted >= s.target
         ? "<p><strong>本轮已投递满 10 份简历。</strong></p>"
-        : "<p><strong>无法凑满 10 份投递（跳过过多）。</strong></p>";
+        : "<p><strong>本轮公司已全部查看。</strong></p>";
     btnApply.classList.add("hidden");
     btnNext.classList.add("hidden");
     btnSide.classList.add("hidden");
     btnLeave.classList.remove("hidden");
+    btnLeave.textContent = "结束本轮，返回主界面";
     return;
   }
 
   btnApply.classList.remove("hidden");
   btnNext.classList.remove("hidden");
-  btnLeave.classList.add("hidden");
+  btnLeave.classList.remove("hidden");
+  btnLeave.textContent = "提前结束本轮投递";
 
   const t = co.tags;
   const sal = t.salary;
@@ -887,7 +957,7 @@ function renderApplyScreen() {
     <div class="tag-block"><span class="tag-label">待遇</span> <span class="tag">${tr.label}<span class="tag-quality tag-q-${tr.quality}">${qualityLabel(tr.quality)}</span></span></div>
     <div class="tag-block"><span class="tag-label">社会风评</span> ${reps}</div>
     ${hidBlock}
-    <p class="muted">基础投递加成（内部）：${co.baseApplyBonus}</p>
+    <p class="muted">招聘情况：${recruitmentLabel(co)}</p>
   `;
 
   if (co.hasHidden && co.hiddenTag && !s.currentRevealed) {
@@ -932,7 +1002,7 @@ function bindApplyScreen() {
   $("btn-next-co").addEventListener("click", () => {
     skipCurrentCompany(state);
     if (applySessionComplete(state) && state.applySession.submitted < 10) {
-      addLog(state, `第 ${state.day} 天：已无法凑满 10 份投递，本轮结束。`);
+      addLog(state, `第 ${state.day} 天：本轮公司已全部查看，投递结束。`);
       endApplySession(state);
       showScreen("screen-main");
       refreshMain();
@@ -949,6 +1019,9 @@ function bindApplyScreen() {
   });
 
   $("btn-leave-apply").addEventListener("click", () => {
+    if (!state?.applySession || state.gameOver) return;
+    const session = state.applySession;
+    addLog(state, `主动结束本轮：已查看 ${session.viewedCount ?? 0}/${session.order.length} 家公司，已投递 ${session.submitted} 份。已投简历保留并继续等待反馈。`);
     endApplySession(state);
     showScreen("screen-main");
     refreshMain();

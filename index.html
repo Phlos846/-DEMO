@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>秋招模拟器</title>
   <link rel="stylesheet" href="./css/style.css" />
+  <link rel="stylesheet" href="./css/ui-refresh.css" />
+  <script type="module" src="./js/ui-refresh.js"></script>
 </head>
 <body>
   <div id="vital-fx" class="vital-fx hidden" aria-hidden="true">
@@ -44,7 +46,7 @@
         <div class="res"><span class="label">行动点</span><span id="res-ap" class="value">4</span></div>
         <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30.0</span> / <span id="res-stress-max">100</span></div>
         <div class="res"><span class="label">精力值</span><span id="res-energy" class="value">80</span> / <span id="res-energy-max">100</span></div>
-        <div class="res"><span class="label">简历完整度</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
+        <div class="res"><span class="label" title="学习、实践与求职经验积累形成的综合能力，影响简历筛选与面试">综合素质</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
       </div>
       <div id="status-effects-bar" class="status-effects card subtle hidden">
         <h3 class="status-effects-title">状态效果</h3>
@@ -58,12 +60,13 @@
 
       <div class="actions card">
         <h2>今日安排</h2>
+        <p class="hint">面试时精力低于 20 或压力高于 80，会随状态恶化降低成功率；两项惩罚可叠加。</p>
         <p class="hint">除「学习」消耗 <strong>2</strong> 行动点外，其余每项消耗 1 行动点；用尽后可结束本日，或<strong>每日限一次</strong>透支再行动 1 点。透支后，下次进入下一日时将<strong>不获得跨日精力恢复</strong>并<strong>额外 -15 精力</strong>。</p>
         <div class="action-grid">
           <button type="button" class="action-btn" data-action="rest">休息<br><small>降压力、回精力</small></button>
           <button type="button" class="action-btn" data-action="fun">娱乐<br><small>降压力，耗精力与金钱；20% 额外触发娱乐类随机事件</small></button>
           <button type="button" class="action-btn" data-action="study">学习<br><small>2 行动点 · 耗精力，提升隐藏通过率</small></button>
-          <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力；本轮结束 +1～2 完整度</small></button>
+          <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力；本轮结束 +1～2 综合素质</small></button>
         </div>
         <p class="hint early-settle-hint hidden">
           <button type="button" id="btn-early-settle" class="secondary">提前结算本局</button>
@@ -93,7 +96,9 @@
       <div class="card apply-card">
         <h2>投递简历</h2>
         <p class="apply-energy-line">当前精力：<span id="apply-energy">80</span> / <span id="apply-energy-max">100</span>（实时）</p>
-        <p>每轮<strong>重新随机生成 15–20 家</strong>公司，本轮需投递 <strong>10</strong> 份；当前已投 <span id="apply-count">0</span> / 10</p>
+        <p>每轮<strong>重新随机生成 15–20 家</strong>公司，最多投递 <strong>10</strong> 份；当前已投 <span id="apply-count">0</span> / 10</p>
+        <p aria-live="polite">已查看公司 <strong id="apply-viewed">0</strong> / <strong id="apply-total">0</strong> 家（含当前展示的公司）</p>
+        <p class="hint">可随时结束本轮，已投简历继续等待反馈。至少投出 1 份才获得本轮简历成长；已消耗的行动点与精力不退还。</p>
         <p class="hint">投递后约 2–3 个工作日才在日志里收到简历过筛结果；「换一个」即跳过且不可再投。</p>
         <div id="company-view" class="company-view"></div>
         <div class="apply-actions">
@@ -101,14 +106,14 @@
           <button type="button" id="btn-next-co" class="secondary">换一个</button>
           <button type="button" id="btn-side-ask" class="secondary">侧面打听</button>
         </div>
-        <button type="button" id="btn-leave-apply" class="secondary hidden">返回主界面</button>
+        <button type="button" id="btn-leave-apply" class="secondary">提前结束本轮投递</button>
       </div>
     </section>
 
     <section id="screen-offer-pick" class="screen hidden">
       <div class="card offer-pick-card">
         <h2>选择本局主 Offer</h2>
-        <p class="hint">用于结局判定与结算页展示。下方列出各 Offer 全部词条；若在投递前未<strong>侧面打听</strong>，隐藏词条以「？」显示。</p>
+        <p class="hint">点击公司行选择主 Offer；点击「查看词条」展开详情，再点一次收起。若在投递前未<strong>侧面打听</strong>，隐藏词条以「？」显示。</p>
         <div id="offer-pick-list" class="offer-pick-list" role="radiogroup" aria-label="主 Offer"></div>
         <button type="button" id="btn-offer-pick-confirm" class="primary" disabled>确认选择</button>
       </div>
@@ -142,12 +147,15 @@
       </div>
     </section>
 
-    <div id="modal-event" class="modal hidden" role="dialog" aria-labelledby="event-title">
+    <div id="modal-event" class="modal hidden" role="dialog" aria-labelledby="event-title" aria-describedby="event-desc" aria-modal="true">
       <div class="modal-inner card event-modal-card">
         <div id="event-emoji" class="event-modal-emoji" aria-hidden="true">📋</div>
         <h2 id="event-title">随机事件</h2>
         <p id="event-desc"></p>
-        <button type="button" id="btn-event-ok" class="primary">确定</button>
+        <p id="event-cost-note" class="hint">选项数值为基础值，实际效果受天赋、状态与属性上限影响。</p>
+        <p id="event-result" class="hidden" role="status" aria-live="polite"></p>
+        <div id="event-choices" class="event-choices"></div>
+        <button type="button" id="btn-event-ok" class="primary hidden">继续</button>
       </div>
     </div>
 

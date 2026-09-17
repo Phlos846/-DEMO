@@ -6,6 +6,7 @@
  */
 
 import {
+  checkInstantFail,
   applyStressDelta,
   applyMoneyDelta,
   applyEnergyDelta,
@@ -18,8 +19,12 @@ import {
   tryNepotismOffer,
 } from "./talentRuntime.js";
 import { hasTalent } from "./talents.js";
+import { EXPANSION_EVENTS } from './eventExpansion.js';
+import { sampleEventPool } from './eventSampling.js';
 import { addLog, clampResumeToCap } from "./state.js";
 import { STUDY_RECOVERY_BUFF_MULT } from "./actions.js";
+import { getEventInteraction, eventChoiceUnavailable, takeDueFollowups } from "./eventChoices.js";
+import { eventAvailableThisRun, eventRepeatMultiplier, recordEventAppearance } from "./eventRecurrence.js";
 import {
   addTransientEffect,
   transientUntilDay,
@@ -182,12 +187,14 @@ export function simulateForwardNaturalDays(state, steps) {
 
 /** 随机事件表：玩梗文案 + emoji；部分需压力/精力/金钱等门槛才进入随机池 */
 export const EVENT_DEFS = [
+  ...EXPANSION_EVENTS,
   {
     id: "evt_network",
+    maxPerRun: 1,
     emoji: "🤝",
     weight: 1,
     title: "学长内推",
-    desc: "一位学长愿意帮你内推一家中小厂，压力略降，简历完整度微升；学长余温让你几天内更不容易被小事点炸（压力获得量↓，持续 3 天）。",
+    desc: "一位学长愿意帮你内推一家中小厂，压力略降，综合素质微升；学长余温让你几天内更不容易被小事点炸（压力获得量↓，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, -5, "event");
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 3);
@@ -235,10 +242,11 @@ export const EVENT_DEFS = [
   },
   {
     id: "evt_side",
+    maxPerRun: 1,
     emoji: "💻",
     weight: 1,
     title: "副业机会",
-    desc: "有人找你接外包，精力下降但简历完整度上升。",
+    desc: "有人找你接外包，精力下降但综合素质上升。",
     apply: (s) => {
       applyEnergyDelta(s, -10);
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 6);
@@ -250,7 +258,7 @@ export const EVENT_DEFS = [
     emoji: "📝",
     weight: 1,
     title: "突发考试",
-    desc: "你突然想起明天有一门闭卷考试，今晚不突击就要挂科！行动点 -2，压力飙升；简历排版与项目描述全被复习资料挤到明天再说——简历完整度 -6。",
+    desc: "你突然想起明天有一门闭卷考试，今晚不突击就要挂科！行动点 -2，压力飙升；简历排版与项目描述全被复习资料挤到明天再说——综合素质 -6。",
     apply: (s) => {
       applyApDelta(s, -2);
       applyStressDelta(s, 10, "event");
@@ -262,7 +270,7 @@ export const EVENT_DEFS = [
     emoji: "📁",
     weight: 1,
     title: "突发作业",
-    desc: "你突然想起有个大作业 ddl 就在后天，而你现在还停留在新建文件夹。行动点 -2，压力飙升；秋招文档在桌面最下层吃灰——简历完整度 -7。",
+    desc: "你突然想起有个大作业 ddl 就在后天，而你现在还停留在新建文件夹。行动点 -2，压力飙升；秋招文档在桌面最下层吃灰——综合素质 -7。",
     apply: (s) => {
       applyApDelta(s, -2);
       applyStressDelta(s, 10, "event");
@@ -286,7 +294,7 @@ export const EVENT_DEFS = [
     emoji: "💔",
     weight: 1,
     title: "分手了",
-    desc: "你和对象分手了。聊天记录停在已读不回，你盯着天花板到凌晨。精力 -35；几天没碰简历，版本还停留在『我们』时写的自我评价——简历完整度 -8。",
+    desc: "你和对象分手了。聊天记录停在已读不回，你盯着天花板到凌晨。精力 -35；几天没碰简历，版本还停留在『我们』时写的自我评价——综合素质 -8。",
     apply: (s) => {
       applyEnergyDelta(s, -35);
       applyStressDelta(s, 6, "event");
@@ -364,7 +372,7 @@ export const EVENT_DEFS = [
     emoji: "🎣",
     weight: 1,
     title: "诈骗",
-    desc: "你在二手群看到『内部测评码』，转账后被拉黑。压力 +10，精力 -30；被骗后你怀疑人生，把简历里『诚信』那条删了又加、加了又删——简历完整度 -6。",
+    desc: "你在二手群看到『内部测评码』，转账后被拉黑。压力 +10，精力 -30；被骗后你怀疑人生，把简历里『诚信』那条删了又加、加了又删——综合素质 -6。",
     apply: (s) => {
       applyStressDelta(s, 10, "event");
       applyEnergyDelta(s, -30);
@@ -387,7 +395,7 @@ export const EVENT_DEFS = [
     emoji: "📎",
     weight: 1,
     title: "甲方说你再改改",
-    desc: "实习群里甲方发来『微调一下』，附件是整包重做。你深吸一口气，简历里又多了两行黑话。压力 +6，简历完整度 +2。",
+    desc: "实习群里甲方发来『微调一下』，附件是整包重做。你深吸一口气，简历里又多了两行黑话。压力 +6，综合素质 +2。",
     apply: (s) => {
       applyStressDelta(s, 6, "event");
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 2);
@@ -415,6 +423,7 @@ export const EVENT_DEFS = [
   },
   {
     id: "evt_lottery_jackpot",
+    maxPerRun: 1,
     emoji: "🎰",
     weight: 0.035,
     immediateSettle: true,
@@ -429,6 +438,7 @@ export const EVENT_DEFS = [
   },
   {
     id: "evt_immigration_spam",
+    maxPerRun: 1,
     emoji: "🌍",
     weight: 0.04,
     immediateSettle: true,
@@ -446,6 +456,7 @@ export const EVENT_DEFS = [
   },
   {
     id: "evt_credit_email",
+    maxPerRun: 1,
     emoji: "📑",
     weight: 0.041,
     immediateSettle: true,
@@ -463,6 +474,7 @@ export const EVENT_DEFS = [
   },
   {
     id: "evt_headhunter_rush",
+    maxPerRun: 1,
     emoji: "☎️",
     weight: 0.037,
     immediateSettle: true,
@@ -580,7 +592,7 @@ export const EVENT_DEFS = [
     emoji: "🥧",
     weight: 1,
     title: "画饼学导论",
-    desc: "直播课标题：《从期权到福报——饼的烘焙与消化》。听完你简历里多写了一句『对齐颗粒度』。简历完整度 +2，压力 +4。",
+    desc: "直播课标题：《从期权到福报——饼的烘焙与消化》。听完你简历里多写了一句『对齐颗粒度』。综合素质 +2，压力 +4。",
     apply: (s) => {
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 2);
       applyStressDelta(s, 4, "event");
@@ -633,7 +645,7 @@ export const EVENT_DEFS = [
     emoji: "👑",
     weight: 1,
     title: "学长 YYDS 内推码",
-    desc: "群里甩码：『懂的都懂』。你抢到了但不知道往哪填，先截图发朋友圈。简历完整度 +3，压力 -2。",
+    desc: "群里甩码：『懂的都懂』。你抢到了但不知道往哪填，先截图发朋友圈。综合素质 +3，压力 -2。",
     apply: (s) => {
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 3);
       applyStressDelta(s, -2, "event");
@@ -698,7 +710,7 @@ export const EVENT_DEFS = [
     emoji: "🕶️",
     weight: 1,
     title: "泰裤辣通宵改简历",
-    desc: "凌晨三点你觉得自己『泰裤辣』，天亮一看全是错别字。简历完整度 -7（得重改），精力 -12，压力 +4。",
+    desc: "凌晨三点你觉得自己『泰裤辣』，天亮一看全是错别字。综合素质 -7（得重改），精力 -12，压力 +4。",
     apply: (s) => {
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality - 7);
       applyEnergyDelta(s, -12);
@@ -1342,7 +1354,7 @@ export const EVENT_DEFS = [
     weight: 0.95,
     requires: { moneyMin: 350 },
     title: "农家乐两日游",
-    desc: "摘菜烧灶，短暂当回自然人。跳过 1 日。",
+    desc: "旅行本身：现金 -220，压力 -14，精力 -12。进入下一自然日，放弃今日剩余行动机会（第 30 天不再推进日期）。跨日的生活费、恢复、天赋及面试另行结算，最终净变化以结果为准。",
     apply: (s) => {
       const maxD = s.maxDays ?? 30;
       if (s.day < maxD) simulateForwardNaturalDays(s, 1);
@@ -1521,28 +1533,19 @@ function cloneEvent(def) {
   return { ...def, apply: def.apply };
 }
 
-function pickUniformEvent(state) {
-  if (hasTalent(state, "clear_eyed") && rnd() < 0.12) {
+function pickUniformEvent(state, reserved, pacing) {
+  const illDef = EVENT_DEFS.find(e => e.id === "evt_ill");
+  if (hasTalent(state, "clear_eyed") && rnd() < 0.12 * eventRepeatMultiplier(illDef, state)) {
     const ill = EVENT_DEFS.find((e) => e.id === "evt_ill");
-    if (ill && eventEligible(ill, state)) return cloneEvent(ill);
+    if (ill && eventEligible(ill, state) && eventAvailableThisRun(ill, state, reserved)) {
+      pacing.notices = 0;
+      return cloneEvent(ill);
+    }
   }
   const pool = EVENT_DEFS.filter(
-    (e) => eventEligible(e, state) && !e.tags?.includes("entertainment"),
+    (e) => eventEligible(e, state) && eventAvailableThisRun(e, state, reserved) && !e.tags?.includes("entertainment"),
   );
-  if (!pool.length) {
-    const fallback =
-      EVENT_DEFS.find((e) => e.id === "evt_press_none" && !e.tags?.includes("entertainment")) ??
-      EVENT_DEFS.find((e) => !e.tags?.includes("entertainment")) ??
-      EVENT_DEFS[0];
-    return cloneEvent(fallback);
-  }
-  const sum = pool.reduce((s, e) => s + (e.weight ?? 1), 0);
-  let r = rnd() * sum;
-  for (const e of pool) {
-    r -= e.weight ?? 1;
-    if (r <= 0) return cloneEvent(e);
-  }
-  return cloneEvent(pool[pool.length - 1]);
+  return sampleEventPool(pool, state, pacing);
 }
 
 /** 为本自然日生成事件队列（每早调用一次） */
@@ -1557,9 +1560,14 @@ export function planEventsForCurrentDay(state) {
     return state.eventModalQueue;
   }
   const k = sampleEventCountForToday(state);
-  const q = [];
+  const q = takeDueFollowups(state);
+  const reserved = new Set();
+  const pacing = { notices: state.eventNoticeStreak ?? 2 };
   for (let i = 0; i < k; i++) {
-    q.push(pickUniformEvent(state));
+    const event = pickUniformEvent(state, reserved, pacing);
+    if (!event) break;
+    q.push(event);
+    reserved.add(event.id);
   }
   state.eventModalQueue = q;
   return q;
@@ -1570,10 +1578,64 @@ export function recordEventResolved(state, day) {
   state.eventsByDay[d] = (state.eventsByDay[d] ?? 0) + 1;
 }
 
-export function resolveEvent(state, event) {
-  const logDay = state.day;
-  event.apply(state);
-  if (!event.skipRecordEvent) recordEventResolved(state, logDay);
+const resolvedEvents = new WeakSet();
+const startedEvents = new WeakMap();
+const resourceFields = { money: '现金', debt: '负债', actionPoints: '行动点', energy: '精力', stress: '压力', resumeQuality: '综合素质', hiddenResume: '简历过筛倾向', hiddenInterview: '面试发挥', day: '日期' };
+
+function applyWithSummary(state, apply) {
+  const before = Object.fromEntries(Object.keys(resourceFields).map(k => [k, state[k] ?? 0]));
+  const previousEffects = new Set((state.transientEffects ?? []).map(fx => fx.id));
+  apply(state);
+  const changes = Object.entries(resourceFields).flatMap(([key, label]) => {
+    const delta = Math.round(((state[key] ?? 0) - before[key]) * 10) / 10;
+    return delta ? [label + ' ' + (delta > 0 ? '+' : '') + delta] : [];
+  });
+  for (const fx of state.transientEffects ?? []) {
+    if (!previousEffects.has(fx.id)) changes.push('新增状态「' + fx.label + '」');
+  }
+  return changes.join('，') || '即时资源无变化';
+}
+
+// Facts settle on display; decisions settle only after a valid selection.
+export function beginEvent(state, event) {
+  if (startedEvents.has(event)) return startedEvents.get(event);
+  recordEventAppearance(state, event);
+  const interaction = getEventInteraction(event);
+  if (!event.skipRecordEvent) {
+    state.eventNoticeStreak = interaction.mode === 'notice' ? (state.eventNoticeStreak ?? 2) + 1 : 0;
+  }
+  const started = { mode: interaction.mode, day: state.day, summary: '', terminal: false };
+  startedEvents.set(event, started);
+  if (!event.skipRecordEvent) recordEventResolved(state, started.day);
+  if (interaction.mode === 'notice' || interaction.before) {
+    started.summary = applyWithSummary(state, interaction.before ?? event.apply);
+    addLog(state, '事件「' + event.title + '」已发生：' + started.summary + '。');
+    checkInstantFail(state);
+  }
+  started.terminal = state.gameOver;
+  if (interaction.mode === 'notice' || started.terminal) {
+    resolvedEvents.add(event);
+    started.result = { ok: true, notice: true, label: '继续', summary: started.summary, immediateSettle: interaction.mode === 'notice' && !!event.immediateSettle };
+  }
+  return started;
+}
+
+export function resolveEvent(state, event, choiceId) {
+  if (resolvedEvents.has(event)) return { ok: false };
+  const interaction = getEventInteraction(event);
+  if (interaction.mode === 'notice') {
+    if (choiceId != null && choiceId !== 'original') return { ok: false };
+    return beginEvent(state, event).result;
+  }
+  const selected = interaction.choices.find(c => c.id === choiceId);
+  if (!selected) return { ok: false };
+  const started = beginEvent(state, event);
+  if (started.terminal) return started.result;
+  if (eventChoiceUnavailable(state, selected)) return { ok: false };
+  resolvedEvents.add(event);
+  const summary = applyWithSummary(state, selected.apply);
+  addLog(state, '事件「' + event.title + '」选择「' + selected.label + '」：' + summary + '。');
+  return { ok: true, immediateSettle: !!selected.immediateSettle, summary, label: selected.label };
 }
 
 /** 当前自然日及前四日内的学习行动总次数（滚动五日窗） */
@@ -1603,7 +1665,7 @@ export function tryStudyBreakthroughEvent(state) {
   return {
     id: "evt_study_breakthrough",
     title: "咬牙顿悟",
-    desc: `你在效率低谷里仍硬啃书本，某一刻突然想通了：过劳的迷雾散去，「用脑过度」状态解除；接下来三个自然日「学习」带来的隐藏简历、隐藏面试与简历完整度增益约为 ×${STUDY_RECOVERY_BUFF_MULT.toFixed(2)}。`,
+    desc: `你在效率低谷里仍硬啃书本，某一刻突然想通了：过劳的迷雾散去，「用脑过度」状态解除；接下来三个自然日「学习」带来的隐藏简历、隐藏面试与综合素质增益约为 ×${STUDY_RECOVERY_BUFF_MULT.toFixed(2)}。`,
     emoji: "💡",
     skipRecordEvent: true,
     apply(s) {
@@ -1631,7 +1693,7 @@ export function tryStudyOverloadEvent(state) {
     id: "evt_study_overload",
     title: "用脑过度",
     desc:
-      "最近五天里你学习次数拉满，大脑已经抗议了。接下来三个自然日「学习」带来的隐藏简历、隐藏面试与简历完整度增益会明显下降，记得穿插休息；若在低谷期仍坚持学习超过三次，有机会顿悟翻身。",
+      "最近五天里你学习次数拉满，大脑已经抗议了。接下来三个自然日「学习」带来的隐藏简历、隐藏面试与综合素质增益会明显下降，记得穿插休息；若在低谷期仍坚持学习超过三次，有机会顿悟翻身。",
     emoji: "🧠",
     skipRecordEvent: true,
     apply(s) {
@@ -1643,14 +1705,8 @@ export function tryStudyOverloadEvent(state) {
 
 /** 娱乐行动 20% 额外触发：仅从带 entertainment 标签的事件池抽取 */
 export function pickRandomEntertainmentEvent(state) {
-  const pool = EVENT_DEFS.filter((e) => e.tags?.includes("entertainment") && eventEligible(e, state));
-  if (!pool.length) return null;
-  const sum = pool.reduce((s, e) => s + (e.weight ?? 1), 0);
-  let r = rnd() * sum;
-  for (const e of pool) {
-    r -= e.weight ?? 1;
-    if (r <= 0) return cloneEvent(e);
-  }
-  return cloneEvent(pool[pool.length - 1]);
+  const reserved = new Set((state.eventModalQueue ?? []).map(e => e.id));
+  const pool = EVENT_DEFS.filter((e) => e.tags?.includes("entertainment") && eventEligible(e, state) && eventAvailableThisRun(e, state, reserved));
+  return sampleEventPool(pool, state);
 }
 

@@ -579,7 +579,7 @@ export function endingSummaryLines(state) {
   const lines = [
     { html: eduMajorHtml },
     `现金结余：${Math.round(state.money ?? 0)}${debt > 0 ? ` · 负债：${Math.round(debt)}` : ""}`,
-    `压力：${Number(state.stress ?? 0).toFixed(1)} / ${state.stressMax ?? 100} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
+    `压力：${Number(state.stress ?? 0).toFixed(1)} / ${state.stressMax ?? 100} · 精力：${Math.round(state.energy)} · 综合素质：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
     `Offer 数量：${state.offers.length} · 累计投递：${state.appliedIds?.length ?? 0} 家`,
     `学习次数：${state.studyCount ?? 0} · 创业脑暴次数：${state.pathStartup ?? 0}`,
     `薪资档位加成：${state.salaryTierBonus ?? 0} · 隐藏倾向（简历/面试）：${Math.round(state.hiddenResume)} / ${Math.round(state.hiddenInterview)}`,
@@ -627,7 +627,7 @@ export function buildEndingShareText(state, end, opts = {}) {
   const debt = state.debt ?? 0;
   parts.push(`现金结余：${Math.round(state.money ?? 0)}${debt > 0 ? ` · 负债：${Math.round(debt)}` : ""}`);
   parts.push(
-    `压力：${Number(state.stress ?? 0).toFixed(1)} / ${state.stressMax ?? 100} · 精力：${Math.round(state.energy)} · 简历完整度：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
+    `压力：${Number(state.stress ?? 0).toFixed(1)} / ${state.stressMax ?? 100} · 精力：${Math.round(state.energy)} · 综合素质：${Math.round(state.resumeQuality)} / ${state.resumeQualityMax ?? 120}`,
   );
   parts.push(`Offer 数量：${state.offers.length} · 累计投递：${state.appliedIds?.length ?? 0} 家`);
   parts.push(`学习次数：${state.studyCount ?? 0} · 创业脑暴次数：${state.pathStartup ?? 0}`);

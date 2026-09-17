@@ -170,6 +170,7 @@ export function processInterviewsAtDayStart(state, options = {}) {
         logo: company.logo ?? "🏢",
         tags: [...(company.visibleTags ?? [])],
         settlementTags: buildSettlementTagParts(company),
+        hiddenRevealed,
         salaryTier,
         industry: company.industry ?? "other",
         salaryDisplayMultiplier: hasTalent(state, "bluff") ? 1.2 : 1,

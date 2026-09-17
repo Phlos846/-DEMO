@@ -113,7 +113,7 @@ export const TALENTS = [
     name: "简历裁缝",
     rarity: "purple",
     pickWeight: 10,
-    desc: "投递准备阶段精力消耗略降，简历完整度微增。",
+    desc: "投递准备阶段精力消耗略降，综合素质微增。",
   },
   // —— 蓝色 ——
   {
@@ -142,7 +142,7 @@ export const TALENTS = [
     name: "PPT 纺织匠",
     rarity: "blue",
     pickWeight: 10,
-    desc: "学习时简历完整度额外提升（排版魂觉醒）。",
+    desc: "学习时综合素质额外提升（排版魂觉醒）。",
   },
   {
     id: "coffee_life",
@@ -163,7 +163,7 @@ export const TALENTS = [
     name: "越薄越勇",
     rarity: "blue",
     pickWeight: 10,
-    desc: "按当前简历完整度（绝对值）对简历/面试期望乘算：完整度为 0 时乘区为 0；完整度 1 时为 2 倍、50 时为 1.2 倍，其间线性；超过 50 仍按同斜率延伸（完整度越高乘区越低）。",
+    desc: "按当前综合素质（绝对值）对简历/面试期望乘算：综合素质为 0 时乘区为 0；综合素质 1 时为 2 倍、50 时为 1.2 倍，其间线性；超过 50 仍按同斜率延伸（综合素质越高乘区越低）。",
   },
   {
     id: "stress_to_power",
