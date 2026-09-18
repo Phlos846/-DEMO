@@ -1,5 +1,5 @@
-import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js';
-import { clampResumeToCap, addLog } from './state.js';
+import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.19';
+import { clampResumeToCap, addLog } from './state.js?v=1.1.19';
 
 // Shared numeric settlement only; prompts and decisions are authored per situation.
 function effect(s, values) {
@@ -27,7 +27,7 @@ function gamble(id,label,cost,p,win,lose,success,failure) {
 }
 const pass = label => option('pass',label,{});
 function decision(id,title,desc,choices,entertainment=false) {
-  return { id:`evt_new_${id}`,title,desc,emoji:entertainment?'🎈':'📌',weight:1,maxPerRun:1,
+  return { id:`evt_new_${id}`,title,desc,emoji:entertainment?'🎈':'📌',weight:1,maxPerRun:entertainment ? Infinity : 1,
     ...(entertainment ? {tags:['entertainment']} : {}),
     interaction:{mode:'choice',prompt:desc,choices},apply() {} };
 }

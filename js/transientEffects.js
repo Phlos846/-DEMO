@@ -4,7 +4,7 @@
  * 「净化」类：清除 debuff 型 transient，并可选解除「用脑过度」机械 debuff。
  */
 
-import { addLog } from "./state.js";
+import { addLog } from "./state.js?v=1.1.19";
 
 function clamp01product(parts) {
   let m = 1;

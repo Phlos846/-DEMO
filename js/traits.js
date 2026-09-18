@@ -1,3 +1,4 @@
+import { careerOwned } from './career.js?v=1.1.19';
 /**
  * 词条系统：随机学历、专业、性格（1–3）、其他（0–2）
  * 数值可整体调参
@@ -60,6 +61,10 @@ export const PERSONALITIES = [
   { id: "per_self", name: "自私" },
   { id: "per_low", name: "自卑" },
   { id: "per_lone", name: "孤僻" },
+  { id: "per_disciplined", name: "自律" },
+  { id: "per_talkative", name: "健谈" },
+  { id: "per_cautious", name: "谨慎" },
+  { id: "per_competitive", name: "好胜" },
 ];
 
 /** 其他词条池：实习 25%、大厂 5% 等 */
@@ -148,6 +153,8 @@ export function rollAllTraits() {
   const extras = [];
   if (ELIGIBLE_EXTRA.has(education.id)) {
     for (const ex of EXTRA_DEGREES) {
+      if (ex.id === 'extra_master' && !careerOwned('master')) continue;
+      if (ex.id === 'extra_phd' && !careerOwned('phd')) continue;
       if (rnd() < ex.p) {
         extras.push({ id: ex.id, name: ex.name, effects: { ...ex.effects } });
       }
@@ -240,6 +247,23 @@ export function computePersonalityActionMods(personalityIds) {
     add("rest", { stress: 1 });
   }
 
+  if (ids.has("per_disciplined")) {
+    add("study", { energy: 3 });
+    add("fun", { stress: 4 });
+  }
+  if (ids.has("per_talkative")) {
+    add("study", { hiddenInterview: 2, hiddenResume: -1 });
+    add("fun", { stress: -2, energy: -2 });
+  }
+  if (ids.has("per_cautious")) {
+    add("apply", { stress: -2, energy: -2 });
+    add("rest", { stress: -1 });
+  }
+  if (ids.has("per_competitive")) {
+    add("study", { resumeQuality: 1, stress: 2 });
+    add("rest", { stress: 2 });
+  }
+
   return mods;
 }
 
@@ -257,4 +281,14 @@ export function formatRolledTraitsLog(rolled) {
     lines.push("其他：无");
   }
   return lines;
+}
+
+/** Generate explanations from the same deltas used by actions, avoiding a second rule table. */
+export function personalityMechanics(id) {
+  const actions = { rest: '休息', fun: '娱乐', study: '学习', apply: '投递准备' };
+  const fields = { energy: '精力', stress: '压力', hiddenResume: '简历过筛倾向', hiddenInterview: '面试发挥', resumeQuality: '综合素质' };
+  return Object.entries(computePersonalityActionMods([id])).map(([action, values]) => {
+    const changes = Object.entries(values).map(([key, value]) => `${fields[key] ?? key}变化额外 ${value > 0 ? '+' : ''}${value}`);
+    return `${actions[action]}：${changes.join('，')}。`;
+  });
 }

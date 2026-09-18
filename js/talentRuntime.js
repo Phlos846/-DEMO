@@ -1,15 +1,16 @@
+import { careerOwned } from './career.js?v=1.1.19';
 /**
  * 天赋运行时：压力、金钱、行动点、与天才/关系等特例
  */
 
-import { hasTalent } from "./talents.js";
+import { hasTalent } from "./talents.js?v=1.1.19";
 import {
   aggregateStressGainMult,
   aggregateStressReliefMult,
   aggregateEnergyDrainMult,
   aggregateEnergyRecoverMult,
   aggregatePassiveEnergyRecoverMult,
-} from "./transientEffects.js";
+} from "./transientEffects.js?v=1.1.19";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -34,7 +35,7 @@ export function patchTraitsForGenius(rolled) {
   const pick = EDU_HIGH[Math.floor(Math.random() * EDU_HIGH.length)];
   rolled.education = { id: pick.id, name: pick.name, tier: pick.tier };
   if (!rolled.extraDegrees) rolled.extraDegrees = [];
-  if (!rolled.extraDegrees.some((e) => e.id === "extra_master")) {
+  if (careerOwned('master') && !rolled.extraDegrees.some((e) => e.id === "extra_master")) {
     rolled.extraDegrees.push({
       id: "extra_master",
       name: "硕士研究生（天赋附赠）",
@@ -382,7 +383,7 @@ export function getEndingTalentNumericHints(state) {
   const sb = talentStudyBonus(state);
   if (sb.hiddenResume || sb.hiddenInterview || sb.resumeQuality) {
     hints.push(
-      `「学习」额外：隐藏简历+${sb.hiddenResume} · 隐藏面试+${sb.hiddenInterview} · 综合素质+${sb.resumeQuality}`,
+      `「学习」基础增量（之后还需乘效率与随机系数并取整）：隐藏简历+${sb.hiddenResume} · 隐藏面试+${sb.hiddenInterview} · 综合素质+${sb.resumeQuality}`,
     );
   }
   const ad = talentApplyEnergyDiscount(state);

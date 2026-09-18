@@ -1,6 +1,6 @@
 /** 公司名与 tag 词库；完整 tag 由 match.js 按匹配分动态生成 */
 
-import { NETA_COMPANY_PRESETS, createNetaShell } from "./netaCompanies.js";
+import { NETA_COMPANY_PRESETS, createNetaShell } from "./netaCompanies.js?v=1.1.19";
 
 export function hashSeed(seed) {
   let h = seed >>> 0;

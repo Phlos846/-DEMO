@@ -1,8 +1,9 @@
+import { onStrategyAction } from './strategies.js?v=1.1.19';
 /** 每日行动基础数值；性格增量由 state.personalityActionMods 叠加 */
 
-import { applyStressDelta, talentStudyBonus, applyEnergyDelta, applyMoneyDelta } from "./talentRuntime.js";
-import { clampResumeToCap } from "./state.js";
-import { hasTalent } from "./talents.js";
+import { applyStressDelta, talentStudyBonus, applyEnergyDelta, applyMoneyDelta } from "./talentRuntime.js?v=1.1.19";
+import { clampResumeToCap } from "./state.js?v=1.1.19";
+import { hasTalent } from "./talents.js?v=1.1.19";
 
 /** 用脑过度时学习三维/简历增益乘算（供界面展示） */
 export const STUDY_OVERLOAD_GAIN_MULT = 0.55;
@@ -59,6 +60,7 @@ export function applyDailyAction(state, actionId) {
     }
     applyStressDelta(state, c.stress ?? 0, "action");
     applyEnergyDelta(state, en);
+    onStrategyAction(state, 'rest');
     return "休息：压力下降，精力恢复。";
   }
   if (actionId === "fun") {
@@ -72,6 +74,7 @@ export function applyDailyAction(state, actionId) {
       }
       applyMoneyDelta(state, moneyDelta);
     }
+    onStrategyAction(state, 'fun');
     return "娱乐：吃喝玩乐都要花钱，压力降了，钱包也瘦了。";
   }
   if (actionId === "study") {
@@ -81,7 +84,8 @@ export function applyDailyAction(state, actionId) {
       state.studyOverloadDebuffUntilDay != null && state.day <= state.studyOverloadDebuffUntilDay;
     const tb = talentStudyBonus(state);
     applyEnergyDelta(state, c.energy ?? 0);
-    const studyScale = 0.9;
+    const coached = (state.coachedStudies ?? 0) > 0;
+    const studyScale = 0.9 * (coached ? 1.5 : 1);
     let studyEffMult = 1;
     if (hasTalent(state, "stress_to_power")) {
       const st = state.stress ?? 0;
@@ -132,7 +136,11 @@ export function applyDailyAction(state, actionId) {
     if (hadOverloadDebuff) {
       state.studyCountWhileOverloadDebuff = (state.studyCountWhileOverloadDebuff ?? 0) + 1;
     }
-    return "学习：精力下降，综合素质与隐藏通过率变化。";
+    onStrategyAction(state, 'study');
+    if (coached) state.coachedStudies--;
+    return coached
+      ? `学习：本次属性收益获得辅导加成，剩余 ${state.coachedStudies} 次；精力下降。`
+      : "学习：精力下降，综合素质与隐藏通过率变化。";
   }
   if (actionId === "apply") {
     applyEnergyDelta(state, c.energy ?? 0);

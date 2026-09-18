@@ -1,3 +1,6 @@
+import { finishHighStressDay } from "./burnout.js?v=1.1.19";
+import { CONDITIONAL_EVENTS, takeConditionalEvent } from "./conditionalEvents.js?v=1.1.19";
+import { STRATEGY_EVENTS } from './strategy-events.js';
 /**
  * 随机事件：加权抽取（含梗文案与 emoji）；
  * 5 日滑动窗口内事件总数 ∈ [1,3]，窗口总次数 60%/30%/10%。
@@ -17,21 +20,21 @@ import {
   applyNoOfferAnxiety,
   applyPassiveDayRecovery,
   tryNepotismOffer,
-} from "./talentRuntime.js";
-import { hasTalent } from "./talents.js";
-import { EXPANSION_EVENTS } from './eventExpansion.js';
-import { sampleEventPool } from './eventSampling.js';
-import { addLog, clampResumeToCap } from "./state.js";
-import { STUDY_RECOVERY_BUFF_MULT } from "./actions.js";
-import { getEventInteraction, eventChoiceUnavailable, takeDueFollowups } from "./eventChoices.js";
-import { eventAvailableThisRun, eventRepeatMultiplier, recordEventAppearance } from "./eventRecurrence.js";
+} from "./talentRuntime.js?v=1.1.19";
+import { hasTalent } from "./talents.js?v=1.1.19";
+import { EXPANSION_EVENTS } from './eventExpansion.js?v=1.1.19';
+import { sampleEventPool } from './eventSampling.js?v=1.1.19';
+import { addLog, clampResumeToCap } from "./state.js?v=1.1.19";
+import { STUDY_RECOVERY_BUFF_MULT } from "./actions.js?v=1.1.19";
+import { getEventInteraction, eventChoiceUnavailable, takeDueFollowups } from "./eventChoices.js?v=1.1.19";
+import { eventAvailableThisRun, eventRepeatMultiplier, recordEventAppearance } from "./eventRecurrence.js?v=1.1.19";
 import {
   addTransientEffect,
   transientUntilDay,
   purgeAllDebuffsForPurify,
   pruneExpiredTransientEffects,
-} from "./transientEffects.js";
-import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js";
+} from "./transientEffects.js?v=1.1.19";
+import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js?v=1.1.19";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -72,7 +75,7 @@ export function countEventsInPrior4Days(state, day) {
   let n = 0;
   for (let i = 1; i <= 4; i++) {
     const d = day - i;
-    if (d >= 1) n += state.eventsByDay[d] ?? 0;
+    if (d >= 1) n += Math.max(0, (state.eventsByDay[d] ?? 0) - (state.entertainmentEventsByDay?.[d] ?? 0) - (state.conditionalEventsByDay?.[d] ?? 0));
   }
   return n;
 }
@@ -109,6 +112,7 @@ export function sampleEventCountForToday(state) {
 
 /** 事件是否满足数值门槛（压力≥70 梗、脆皮低精力、负债等） */
 function eventEligible(def, state) {
+  if (def.eligible && !def.eligible(state)) return false;
   const r = def.requires;
   if (!r) return true;
   if (r.stressMin != null && state.stress < r.stressMin) return false;
@@ -153,6 +157,7 @@ function setIndustryBuff(state, industry, days = 7, mult = 1.2) {
 /** 休养跳过若干自然日：模拟跨日（生活费、精力、面试队列等） */
 export function simulateForwardNaturalDays(state, steps) {
   for (let i = 0; i < steps; i++) {
+    if (finishHighStressDay(state)) break;
     const leavingDay = state.day;
     state.day += 1;
     pruneExpiredTransientEffects(state);
@@ -187,6 +192,20 @@ export function simulateForwardNaturalDays(state, steps) {
 
 /** 随机事件表：玩梗文案 + emoji；部分需压力/精力/金钱等门槛才进入随机池 */
 export const EVENT_DEFS = [
+  ...STRATEGY_EVENTS,
+  ...CONDITIONAL_EVENTS,
+  {
+    id: 'evt_offer_withdrawn', emoji: '📩', title: '说好的 Offer 呢？',
+    desc: 'HR 发来邮件：“因业务调整，原定岗位编制取消，我们很遗憾地撤回录用通知。”随机失去一份已获得的 Offer，压力 +12。这是已经发生的通知，每局最多一次。',
+    requires: { offersMin: 1, dayMin: 8 }, maxPerRun: 1, weight: 0.8,
+    apply(s) {
+      if (!s.offers?.length) return;
+      const [withdrawn] = s.offers.splice(Math.floor(Math.random() * s.offers.length), 1);
+      if (s.playerChosenOffer?.companyId === withdrawn.companyId) s.playerChosenOffer = null;
+      applyStressDelta(s, 12, 'event');
+      addLog(s, `「${withdrawn.name}」因岗位编制取消撤回 Offer，当前剩余 ${s.offers.length} 份。`);
+    },
+  },
   ...EXPANSION_EVENTS,
   {
     id: "evt_network",
@@ -1543,7 +1562,7 @@ function pickUniformEvent(state, reserved, pacing) {
     }
   }
   const pool = EVENT_DEFS.filter(
-    (e) => eventEligible(e, state) && eventAvailableThisRun(e, state, reserved) && !e.tags?.includes("entertainment"),
+    (e) => eventEligible(e, state) && eventAvailableThisRun(e, state, reserved) && !e.tags?.includes("entertainment") && !e.tags?.includes("conditional"),
   );
   return sampleEventPool(pool, state, pacing);
 }
@@ -1561,6 +1580,8 @@ export function planEventsForCurrentDay(state) {
   }
   const k = sampleEventCountForToday(state);
   const q = takeDueFollowups(state);
+  const conditional = takeConditionalEvent(state);
+  if (conditional) q.push(conditional);
   const reserved = new Set();
   const pacing = { notices: state.eventNoticeStreak ?? 2 };
   for (let i = 0; i < k; i++) {
@@ -1580,9 +1601,10 @@ export function recordEventResolved(state, day) {
 
 const resolvedEvents = new WeakSet();
 const startedEvents = new WeakMap();
-const resourceFields = { money: '现金', debt: '负债', actionPoints: '行动点', energy: '精力', stress: '压力', resumeQuality: '综合素质', hiddenResume: '简历过筛倾向', hiddenInterview: '面试发挥', day: '日期' };
+const resourceFields = { money: '现金', debt: '负债', actionPoints: '行动点', energy: '精力', stress: '压力', resumeQuality: '综合素质', hiddenResume: '简历过筛倾向', hiddenInterview: '面试发挥', day: '日期', strategyBonusGrowth: '额外成长名额', strategyBonusCore: '额外流派名额' };
 
 function applyWithSummary(state, apply) {
+  const previousOffers = [...(state.offers ?? [])];
   const before = Object.fromEntries(Object.keys(resourceFields).map(k => [k, state[k] ?? 0]));
   const previousEffects = new Set((state.transientEffects ?? []).map(fx => fx.id));
   apply(state);
@@ -1590,6 +1612,9 @@ function applyWithSummary(state, apply) {
     const delta = Math.round(((state[key] ?? 0) - before[key]) * 10) / 10;
     return delta ? [label + ' ' + (delta > 0 ? '+' : '') + delta] : [];
   });
+  for (const offer of previousOffers) {
+    if (!(state.offers ?? []).includes(offer)) changes.push(`「${offer.name}」撤回 Offer（剩余 ${state.offers.length} 份）`);
+  }
   for (const fx of state.transientEffects ?? []) {
     if (!previousEffects.has(fx.id)) changes.push('新增状态「' + fx.label + '」');
   }
@@ -1607,6 +1632,14 @@ export function beginEvent(state, event) {
   const started = { mode: interaction.mode, day: state.day, summary: '', terminal: false };
   startedEvents.set(event, started);
   if (!event.skipRecordEvent) recordEventResolved(state, started.day);
+  if (!event.skipRecordEvent && event.tags?.includes("conditional")) {
+    state.conditionalEventsByDay ??= {};
+    state.conditionalEventsByDay[started.day] = (state.conditionalEventsByDay[started.day] ?? 0) + 1;
+  }
+  if (!event.skipRecordEvent && event.tags?.includes('entertainment')) {
+    state.entertainmentEventsByDay ??= {};
+    state.entertainmentEventsByDay[started.day] = (state.entertainmentEventsByDay[started.day] ?? 0) + 1;
+  }
   if (interaction.mode === 'notice' || interaction.before) {
     started.summary = applyWithSummary(state, interaction.before ?? event.apply);
     addLog(state, '事件「' + event.title + '」已发生：' + started.summary + '。');
@@ -1708,5 +1741,19 @@ export function pickRandomEntertainmentEvent(state) {
   const reserved = new Set((state.eventModalQueue ?? []).map(e => e.id));
   const pool = EVENT_DEFS.filter((e) => e.tags?.includes("entertainment") && eventEligible(e, state) && eventAvailableThisRun(e, state, reserved));
   return sampleEventPool(pool, state);
+}
+
+export const ENTERTAINMENT_PITY_AFTER = 7;
+/** Called once after a completed entertainment action. Empty pools preserve pity. */
+export function tryEntertainmentEvent(state, random = Math.random) {
+  if (state.gameOver) return null;
+  const misses = state.entertainmentMisses ?? 0;
+  if (misses < ENTERTAINMENT_PITY_AFTER && random() >= 0.2) {
+    state.entertainmentMisses = misses + 1;
+    return null;
+  }
+  const event = pickRandomEntertainmentEvent(state);
+  state.entertainmentMisses = event ? 0 : Math.min(ENTERTAINMENT_PITY_AFTER, misses + 1);
+  return event;
 }
 

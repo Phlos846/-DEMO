@@ -4,9 +4,9 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>秋招模拟器</title>
-  <link rel="stylesheet" href="./css/style.css" />
-  <link rel="stylesheet" href="./css/ui-refresh.css" />
-  <script type="module" src="./js/ui-refresh.js"></script>
+  <link rel="stylesheet" href="./css/style.css?v=1.1.19" />
+  <link rel="stylesheet" href="./css/ui-refresh.css?v=1.1.19" />
+  <script type="module" src="./js/ui-refresh.js?v=1.1.19"></script>
 </head>
 <body>
   <div id="vital-fx" class="vital-fx hidden" aria-hidden="true">
@@ -16,23 +16,27 @@
   <div id="app">
     <header class="top-bar">
       <h1>秋招模拟器</h1>
+      <div class="version-tools">
+        <span id="game-version" class="muted" aria-label="游戏版本">v1.1.19</span>
+      </div>
       <p class="subtitle">第 <span id="day-num">1</span> / 30 天 · 行动点 <span id="ap">4</span> / 4</p>
     </header>
 
     <section id="screen-start" class="screen">
       <div class="card">
         <h2>开局说明</h2>
-        <p class="hint">每局将<strong>随机</strong>生成：学历（含概率附加研究生/博士/双学位）、专业、1–3 个性格词条、0–2 个其他词条、<strong>2–3 个天赋</strong>。通关任意结局后可「重随词条」刷开局。</p>
-        <label class="hint" for="cheat-code">作弊码（可选，开局前输入）</label>
+        <p class="hint">随机背景，30 天秋招。合理安排学习、休息与投递，争取心仪的 Offer。</p>
+        <label class="hint" for="cheat-code">作弊码（可选）</label>
         <input type="text" id="cheat-code" class="cheat-input" placeholder="留空即正常模式" autocomplete="off" />
         <div id="start-trait-preview" class="card subtle start-preview"></div>
-        <p class="hint"><button type="button" id="btn-reroll-traits" class="secondary">重随词条</button>（需先完成过至少一局） · <button type="button" id="btn-codex-start" class="secondary">图鉴</button></p>
+        <p class="hint"><button type="button" id="btn-reroll-traits" class="secondary" disabled>重随词条</button>（完成一局正常模式后解锁） · <button type="button" id="btn-codex-start" class="secondary">图鉴</button></p>
         <p id="boot-fail" class="hint boot-fail hidden">
           游戏脚本未能加载。请<strong>不要</strong>用资源管理器直接双击打开本页（浏览器地址栏以 <code>file://</code> 开头时按钮会失效）。
           请关闭本窗口，双击运行文件夹里的 <strong>start.bat</strong>，或在本文件夹打开终端执行
           <code>python -m http.server 8765</code>，再在浏览器访问 <code>http://127.0.0.1:8765</code>。
         </p>
-        <button type="button" id="btn-start" class="primary">随机词条并开始秋招</button>
+        <p><button type="button" id="btn-career-start" class="secondary">局外成长</button></p>
+        <button type="button" id="btn-start" class="primary">开始秋招</button>
       </div>
     </section>
 
@@ -44,13 +48,13 @@
           <span id="res-debt-wrap" class="muted hidden"> · 负债 <span id="res-debt">0</span></span>
         </div>
         <div class="res"><span class="label">行动点</span><span id="res-ap" class="value">4</span></div>
-        <div class="res"><span class="label">压力值</span><span id="res-stress" class="value">30.0</span> / <span id="res-stress-max">100</span></div>
-        <div class="res"><span class="label">精力值</span><span id="res-energy" class="value">80</span> / <span id="res-energy-max">100</span></div>
-        <div class="res"><span class="label" title="学习、实践与求职经验积累形成的综合能力，影响简历筛选与面试">综合素质</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
+        <div class="res"><span class="label">压力</span><span id="res-stress" class="value">30.0</span> / <span id="res-stress-max">100</span></div>
+        <div class="res"><span class="label">精力</span><span id="res-energy" class="value">80</span> / <span id="res-energy-max">100</span></div>
+        <div class="res"><span class="label" title="影响简历筛选与面试">综合素质</span><span id="res-resume" class="value">50</span> / <span id="res-resume-max">120</span></div>
       </div>
       <div id="status-effects-bar" class="status-effects card subtle hidden">
-        <h3 class="status-effects-title">状态效果</h3>
-        <p class="hint status-effects-hint">仅显示本局临时增益/减益（不含性格与天赋）。</p>
+        <h3 class="status-effects-title">临时状态</h3>
+
         <ul id="status-effects-list" class="status-effects-list"></ul>
       </div>
       <div class="hidden-stats card subtle hidden">
@@ -60,24 +64,46 @@
 
       <div class="actions card">
         <h2>今日安排</h2>
-        <p class="hint">面试时精力低于 20 或压力高于 80，会随状态恶化降低成功率；两项惩罚可叠加。</p>
-        <p class="hint">除「学习」消耗 <strong>2</strong> 行动点外，其余每项消耗 1 行动点；用尽后可结束本日，或<strong>每日限一次</strong>透支再行动 1 点。透支后，下次进入下一日时将<strong>不获得跨日精力恢复</strong>并<strong>额外 -15 精力</strong>。</p>
+        <p class="hint">学习消耗 2 行动点，其余行动消耗 1 点；用尽后可结束本日。</p>
         <div class="action-grid">
           <button type="button" class="action-btn" data-action="rest">休息<br><small>降压力、回精力</small></button>
-          <button type="button" class="action-btn" data-action="fun">娱乐<br><small>降压力，耗精力与金钱；20% 额外触发娱乐类随机事件</small></button>
-          <button type="button" class="action-btn" data-action="study">学习<br><small>2 行动点 · 耗精力，提升隐藏通过率</small></button>
-          <button type="button" class="action-btn" data-action="apply">投递简历<br><small>进入投递页，耗精力；本轮结束 +1～2 综合素质</small></button>
+          <button type="button" class="action-btn" data-action="fun">娱乐<br><small>减压，消耗精力与现金；20% 触发事件，连续未触发有保底</small></button>
+          <button type="button" class="action-btn" data-action="study">学习<br><small>耗精力，提升综合素质与求职能力</small></button>
+          <button type="button" class="action-btn" data-action="apply">投递简历<br><small>耗精力；有投递的每轮结束后提升综合素质</small></button>
         </div>
         <p class="hint early-settle-hint hidden">
           <button type="button" id="btn-early-settle" class="secondary">提前结算本局</button>
-          至少一份 Offer 时可结束秋招并进入结局（未到第 30 天亦可）。
+          持有 Offer 即可提前结束。
         </p>
         <div class="day-control-row">
-          <button type="button" id="btn-end-day" class="secondary" disabled>结束本日（行动点已用尽）</button>
-          <button type="button" id="btn-overdraft" class="secondary hidden">透支：再行动 1 次（本日限 1 次）</button>
+          <button type="button" id="btn-end-day" class="secondary" disabled>结束本日</button>
+          <button type="button" id="btn-overdraft" class="secondary hidden">透支 +1 行动点</button>
         </div>
+        <details class="action-rules">
+          <summary>行动规则与透支说明</summary>
+          <p class="hint">结算时压力 ≥85 可能进入身心透支结局；连续 3 天日末压力 ≥85 会提前触发。日末降到 85 以下可中断累计。</p>
+          <p class="hint">娱乐连续 7 次未触发事件，第 8 次保底；触发后重新计数。事件仍遵守冷却与条件限制，无可用事件时保留保底。娱乐事件不占每日事件配额。</p>
+          <p class="hint">行动点用尽后，每日可透支一次，获得 1 行动点。代价：次日不恢复精力，并额外扣除 15 精力。</p>
+          <p class="hint">面试时精力低于 20 或压力高于 80，会降低成功率；两项惩罚可叠加。</p>
+        </details>
       </div>
 
+      <div class="card strategy-panel">
+        <h2>求职策略</h2>
+        <p class="hint">开局及每隔 5 天选择一次：先选流派，再选满 3 项成长，才能选下一流派。事件可增加名额；本局不可更换。</p>
+        <p id="strategy-resources" aria-live="polite"></p>
+        <div id="strategy-owned"></div>
+        <p id="strategy-progress" class="hint"></p>
+        <details class="strategy-career"><summary>策略成长</summary><div data-strategy-career></div></details>
+      </div>
+      <div class="card money-panel">
+        <h2>求职预算</h2>
+        <div id="run-relic" class="hidden"></div>
+        <p id="money-budget" class="hint"></p>
+        <p id="money-coaching" class="hint" aria-live="polite"></p>
+        <div id="money-options" class="money-grid"></div>
+        <p class="hint">付费项目仅使用现金；精力和压力变化受天赋与状态影响。</p>
+      </div>
       <div id="interview-banner" class="banner hidden"></div>
 
       <div class="card">
@@ -95,25 +121,26 @@
     <section id="screen-apply" class="screen hidden">
       <div class="card apply-card">
         <h2>投递简历</h2>
-        <p class="apply-energy-line">当前精力：<span id="apply-energy">80</span> / <span id="apply-energy-max">100</span>（实时）</p>
-        <p>每轮<strong>重新随机生成 15–20 家</strong>公司，最多投递 <strong>10</strong> 份；当前已投 <span id="apply-count">0</span> / 10</p>
-        <p aria-live="polite">已查看公司 <strong id="apply-viewed">0</strong> / <strong id="apply-total">0</strong> 家（含当前展示的公司）</p>
-        <p class="hint">可随时结束本轮，已投简历继续等待反馈。至少投出 1 份才获得本轮简历成长；已消耗的行动点与精力不退还。</p>
-        <p class="hint">投递后约 2–3 个工作日才在日志里收到简历过筛结果；「换一个」即跳过且不可再投。</p>
+        <p class="apply-energy-line">精力：<span id="apply-energy">80</span> / <span id="apply-energy-max">100</span></p>
+        <p>每轮 15–20 家公司，最多投递 <span id="apply-target-hint">10</span> 份。已投 <span id="apply-count">0</span> / <span id="apply-target">10</span></p>
+        <p aria-live="polite">已查看 <strong id="apply-viewed">0</strong> / <strong id="apply-total">0</strong> 家（含当前公司）</p>
+        <p class="hint">可随时结束，已投简历不受影响；至少投递一次才获得综合素质成长，消耗不退。</p>
+        <p class="hint">约 2–3 天后在日志查看结果；跳过的公司本轮不可再投。</p>
         <div id="company-view" class="company-view"></div>
+        <div id="strategy-approaches" class="strategy-approaches hidden"></div>
         <div class="apply-actions">
           <button type="button" id="btn-apply-co" class="primary">投递该公司</button>
-          <button type="button" id="btn-next-co" class="secondary">换一个</button>
+          <button type="button" id="btn-next-co" class="secondary">跳过</button>
           <button type="button" id="btn-side-ask" class="secondary">侧面打听</button>
         </div>
-        <button type="button" id="btn-leave-apply" class="secondary">提前结束本轮投递</button>
+        <button type="button" id="btn-leave-apply" class="secondary">结束本轮投递</button>
       </div>
     </section>
 
     <section id="screen-offer-pick" class="screen hidden">
       <div class="card offer-pick-card">
         <h2>选择本局主 Offer</h2>
-        <p class="hint">点击公司行选择主 Offer；点击「查看词条」展开详情，再点一次收起。若在投递前未<strong>侧面打听</strong>，隐藏词条以「？」显示。</p>
+        <p class="hint">选择主 Offer，可展开词条。未打听的隐藏词条显示为「？」。</p>
         <div id="offer-pick-list" class="offer-pick-list" role="radiogroup" aria-label="主 Offer"></div>
         <button type="button" id="btn-offer-pick-confirm" class="primary" disabled>确认选择</button>
       </div>
@@ -124,6 +151,10 @@
         <div id="end-emoji" class="end-card-emoji" aria-hidden="true">📋</div>
         <h2 id="end-title">结局</h2>
         <p id="end-body"></p>
+        <p id="end-strategies" class="hint"></p>
+        <p id="end-strategy-unlocks" class="hint" aria-live="polite"></p>
+        <p id="end-career-reward" class="hint" aria-live="polite"></p>
+        <button type="button" id="btn-career-end" class="secondary">局外成长</button>
         <p id="end-early-day" class="end-early-day muted hidden" aria-live="polite"></p>
         <div id="end-talents" class="end-talents"></div>
         <div id="end-best-offer" class="end-best-offer hidden">
@@ -147,12 +178,29 @@
       </div>
     </section>
 
+    <dialog id="career-modal" class="game-dialog card" aria-labelledby="career-title">
+      <div class="dialog-heading"><h2 id="career-title">局外成长 · <span id="career-points">0</span> 点</h2><button type="button" id="btn-career-close" class="secondary" autofocus>关闭</button></div>
+      <details><summary>成长规则</summary>
+        <p class="hint">成功求职结算 +3 点，首次发现结局 +2 点，可叠加。成功求职指持有 Offer 并进入求职成功类结局；身心透支、压力爆表、传销及其他特殊转向不计成功奖励。作弊局不奖励。</p>
+        <p class="hint">信物永久解锁，每局只携带一个、使用一次。学历解锁后才进入随机池；成长保存于本浏览器，清除网站数据会丢失。旧结局不补发点数。</p>
+      </details>
+      <p id="career-message" class="hint" aria-live="polite"></p>
+      <div id="career-shop"></div>
+      <details class="strategy-career"><summary>策略成就</summary><div data-strategy-career></div></details>
+    </dialog>
+    <dialog id="strategy-choice-modal" class="game-dialog card" aria-labelledby="strategy-choice-title" aria-describedby="strategy-choice-rule">
+      <h2 id="strategy-choice-title">选择求职策略</h2>
+      <p id="strategy-choice-progress" class="hint"></p>
+      <p id="strategy-choice-rule" class="hint">选择一个策略继续。本次不选将放弃这次名额，不能补选；不影响后续选择。</p>
+      <div id="strategy-choices" class="money-grid"></div>
+      <button type="button" id="btn-strategy-skip" class="secondary">本次不选择策略</button>
+    </dialog>
     <div id="modal-event" class="modal hidden" role="dialog" aria-labelledby="event-title" aria-describedby="event-desc" aria-modal="true">
       <div class="modal-inner card event-modal-card">
         <div id="event-emoji" class="event-modal-emoji" aria-hidden="true">📋</div>
         <h2 id="event-title">随机事件</h2>
         <p id="event-desc"></p>
-        <p id="event-cost-note" class="hint">选项数值为基础值，实际效果受天赋、状态与属性上限影响。</p>
+        <p id="event-cost-note" class="hint">实际收益受天赋、状态与属性上限影响。</p>
         <p id="event-result" class="hidden" role="status" aria-live="polite"></p>
         <div id="event-choices" class="event-choices"></div>
         <button type="button" id="btn-event-ok" class="primary hidden">继续</button>
@@ -195,7 +243,7 @@
   </div>
 
   <script type="module">
-    import("./js/main.js").catch((err) => {
+    import("./js/main.js?v=1.1.19").catch((err) => {
       console.error(err);
       const el = document.getElementById("boot-fail");
       if (el) el.classList.remove("hidden");

@@ -8,15 +8,6 @@ header.append(toggle);
 const offerPanel = document.querySelector('#offer-list').closest('.card');
 offerPanel.classList.add('offers-panel');
 
-const actions = document.querySelector('.actions');
-const rules = actions.querySelector(':scope > .hint');
-const rulesAnchor = document.createComment('Original action rules position');
-rules.before(rulesAnchor);
-const details = document.createElement('details');
-details.className = 'action-rules';
-const summary = document.createElement('summary');
-summary.textContent = '行动规则与透支说明';
-details.append(summary);
 
 const logPanel = document.querySelector('.log-panel');
 const expand = document.createElement('button');
@@ -36,13 +27,6 @@ function setLayout(modern) {
   root.classList.toggle('ui-modern', modern);
   toggle.textContent = modern ? '切换经典布局' : '试用新版布局';
   toggle.setAttribute('aria-label', modern ? '当前为新版布局，切换经典布局' : '当前为经典布局，切换新版布局');
-  if (modern) {
-    details.append(rules);
-    actions.append(details);
-  } else {
-    rulesAnchor.after(rules);
-    details.remove();
-  }
   try { localStorage.setItem('ar_layout_v1', modern ? 'modern' : 'classic'); } catch {}
 }
 let modern = true;

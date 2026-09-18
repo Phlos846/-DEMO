@@ -1,3 +1,4 @@
+import { careerLevel } from './career.js?v=1.1.19';
 /**
  * 玩家天赋：每局 2–3 个；稀有度配色 + 权重
  * 稀有度先验（权重合计 100）：金 4.5% / 紫 22% / 蓝 30% / 白 33.5% / 黑 10%
@@ -49,7 +50,7 @@ export const TALENTS = [
     name: "天才",
     rarity: "gold",
     pickWeight: 8,
-    desc: "初始属性大幅提升，并固定附赠高学历（985/清北/海归档）+ 研究生词条。",
+    desc: "初始属性大幅提升，并固定附赠高学历（985/清北/海归档）；局外已解锁硕士时，再附赠硕士研究生词条。",
   },
   {
     id: "bluff",
@@ -113,7 +114,7 @@ export const TALENTS = [
     name: "简历裁缝",
     rarity: "purple",
     pickWeight: 10,
-    desc: "投递准备阶段精力消耗略降，综合素质微增。",
+    desc: "单次投递精力消耗略降；每轮至少投递一次后，结束该轮时综合素质额外小幅提升。",
   },
   // —— 蓝色 ——
   {
@@ -149,7 +150,7 @@ export const TALENTS = [
     name: "咖啡续命",
     rarity: "blue",
     pickWeight: 9,
-    desc: "每日生活费 +10，但休息恢复的精力略多。",
+    desc: "每日生活费略增，但跨日时能多恢复一些精力。",
   },
   {
     id: "ddl_warrior",
@@ -192,7 +193,7 @@ export const TALENTS = [
     name: "熬夜冠军",
     rarity: "white",
     pickWeight: 11,
-    desc: "奇数日最大行动点 +1；跨日时被动精力恢复下降。",
+    desc: "奇数日最大行动点 +1；进入偶数日时，跨日被动精力恢复乘以 0.62 并取整。",
   },
   {
     id: "pinhaofan",
@@ -206,14 +207,14 @@ export const TALENTS = [
     name: "清澈大学生",
     rarity: "white",
     pickWeight: 10,
-    desc: "随机事件里「踩坑」概率略高，但心态意外地好（压力波动变小）。",
+    desc: "随机事件中更容易生病，但心态意外地好，压力增加时涨幅略小，减压不受影响。",
   },
   {
     id: "offer_hunter",
     name: "海投练习生",
     rarity: "white",
     pickWeight: 9,
-    desc: "单次投递精力 -1，但更容易手滑多投（简历过筛微幅波动）。",
+    desc: "单次投递精力消耗略降，简历通过率小幅提高，但面试通过率略微降低。",
   },
   // —— 黑色 ——
   {
@@ -297,6 +298,7 @@ export function hasTalent(state, id) {
 }
 
 function pickWeightedPool(items, weightKey = "pickWeight") {
+  items = items.map(item => item.id === 'genius' ? { ...item, [weightKey]: item[weightKey] * (1 + careerLevel('genius')) } : item);
   const total = items.reduce((s, x) => s + x[weightKey], 0);
   let r = rnd() * total;
   for (const x of items) {

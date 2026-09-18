@@ -1,4 +1,4 @@
-import { hashSeed } from './companies.js';
+import { hashSeed } from './companies.js?v=1.1.19';
 
 const REQUIREMENTS = [
   {label:'基础要求', factor:1.08},

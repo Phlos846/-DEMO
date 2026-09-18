@@ -1,7 +1,8 @@
+import { BURNOUT_STRESS } from "./burnout.js?v=1.1.19";
 /** 多结局：按优先级判定（特殊结局 > 就业质量线） */
 
-import { hasTalent } from "./talents.js";
-import { educationTagClass } from "./eduTags.js";
+import { hasTalent } from "./talents.js?v=1.1.19";
+import { educationTagClass } from "./eduTags.js?v=1.1.19";
 
 function escapeHtml(s) {
   return String(s)
@@ -84,7 +85,7 @@ export const ENDING_CATALOG = [
   {
     id: "burnout",
     title: "身心透支",
-    body: "长期高压让你在秋招尾声几近崩溃。结局与身体状态相关，建议关注休息与节奏。",
+    body: "高压消耗了你的精力与耐心，你决定暂停秋招，先把生活节奏找回来。",
   },
   {
     id: "early_settle",
@@ -316,12 +317,16 @@ function maybeStudyPivotEnding(state, n) {
 
 /** 同一局内多次 computeEnding 共用一次随机，避免选 Offer 前后考研/考公结果不一致 */
 function getStudyPivotEnding(state, n) {
+  const hasGraduateDegree = state.traits?.extraDegrees?.some(
+    (degree) => degree.id === "extra_master" || degree.id === "extra_phd",
+  );
   if (Object.prototype.hasOwnProperty.call(state, "studyPivotBranch")) {
+    if (hasGraduateDegree && state.studyPivotBranch === "postgrad") state.studyPivotBranch = null;
     return state.studyPivotBranch;
   }
   const r = maybeStudyPivotEnding(state, n);
-  state.studyPivotBranch = r;
-  return r;
+  state.studyPivotBranch = hasGraduateDegree && r === "postgrad" ? null : r;
+  return state.studyPivotBranch;
 }
 
 /** 考研 TV / 考公 TV：不进入玩家选主 Offer 流程 */
@@ -355,6 +360,10 @@ export function computeEnding(state, options = {}) {
     };
   }
 
+  if (state.burnoutEarlyEnd) {
+    return { ...ENDING_CATALOG.find(e => e.id === "burnout") };
+  }
+
   if (state.eventImmediateEnding?.id) {
     const fe = state.eventImmediateEnding;
     return { id: fe.id, title: fe.title, body: fe.body };
@@ -384,11 +393,11 @@ export function computeEnding(state, options = {}) {
     };
   }
 
-  if (stress >= 92) {
+  if (stress >= BURNOUT_STRESS) {
     return {
       id: "burnout",
       title: "身心透支",
-      body: "长期高压让你在秋招尾声几近崩溃。结局与身体状态相关，建议关注休息与节奏。",
+      body: "高压消耗了你的精力与耐心，你决定暂停秋招，先把生活节奏找回来。",
     };
   }
 

@@ -1,5 +1,5 @@
-import { getEventInteraction } from './eventChoices.js';
-import { eventRepeatMultiplier } from './eventRecurrence.js';
+import { getEventInteraction } from './eventChoices.js?v=1.1.19';
+import { eventRepeatMultiplier } from './eventRecurrence.js?v=1.1.19';
 
 export function isInteractiveEvent(event) {
   return getEventInteraction(event).mode !== 'notice';

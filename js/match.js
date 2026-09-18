@@ -12,11 +12,12 @@ import {
   getFlatTagLabels,
   hashSeed,
   pickSeeded,
-} from "./companies.js";
-import { getRecruitmentProfile, recruitmentModifier, interviewConditionModifier } from "./recruitment.js";
-import { hasTalent } from "./talents.js";
-import { talentPassBonus } from "./talentRuntime.js";
-import { getNetaPresetById } from "./netaCompanies.js";
+} from "./companies.js?v=1.1.19";
+import { getRecruitmentProfile, recruitmentModifier, interviewConditionModifier } from "./recruitment.js?v=1.1.19";
+import { strategyPassBonus } from './strategies.js?v=1.1.19';
+import { hasTalent } from "./talents.js?v=1.1.19";
+import { talentPassBonus } from "./talentRuntime.js?v=1.1.19";
+import { getNetaPresetById } from "./netaCompanies.js?v=1.1.19";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -247,7 +248,7 @@ export function expectedResumePass(state, company, hiddenRevealed) {
   if (hasTalent(state, "resume_red_flag")) p *= 0.89;
 
 
-  return clamp(p, 0.02, 0.92);
+  return clamp(p + strategyPassBonus(company, 'resume'), 0.02, 0.92);
 }
 
 export function expectedInterviewPass(state, company, hiddenRevealed) {
@@ -283,7 +284,7 @@ export function expectedInterviewPass(state, company, hiddenRevealed) {
   if (hasTalent(state, "stage_fright")) p *= 0.87;
 
 
-  return clamp(p, 0.025, 0.92) * interviewConditionModifier(state);
+  return clamp(p + strategyPassBonus(company, 'interview') + (state.relicInterviewReady ? .15 : 0), 0.025, 0.92) * interviewConditionModifier(state);
 }
 
 export function updateJobSearchRating(state, expectedProb, actualOne) {

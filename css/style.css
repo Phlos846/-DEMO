@@ -1134,3 +1134,36 @@ body.vital-stress-active.vital-energy-active #app {
 .codex-modal-card #btn-codex-close {
   width: 100%;
 }
+
+dialog.game-dialog { width: min(760px, calc(100vw - 28px)); max-height: calc(100dvh - 32px); margin: auto; overflow-y: auto; overscroll-behavior: contain; color: var(--text); background: var(--bg); box-sizing: border-box; padding: 22px; }
+dialog.game-dialog::backdrop { background: rgba(0, 0, 0, .72); }
+body:has(dialog[open]) { overflow: hidden; }
+.dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; position: sticky; top: -22px; background: var(--bg); z-index: 1; padding: 12px 0; }
+.dialog-heading h2 { margin: 0; }
+#btn-strategy-skip { margin-top: 18px; width: 100%; min-height: 44px; }
+@media (max-width: 600px) { dialog.game-dialog { padding: 16px; } dialog.game-dialog .money-grid { grid-template-columns: 1fr; } .dialog-heading { top: -16px; } }
+.career-item { min-width: 0; border: 1px solid var(--border); border-radius: 8px; padding: 12px; overflow-wrap: anywhere; }
+.career-item button { display: block; width: 100%; min-height: 44px; margin-top: 8px; }
+.strategy-panel details, .strategy-career { margin: 8px 0; border: 1px solid var(--border); border-radius: 8px; padding: 10px; }
+.strategy-career summary { cursor: pointer; min-height: 44px; padding: 8px 0; overflow-wrap: anywhere; }
+.strategy-career p { overflow-wrap: anywhere; }
+.strategy-panel summary { cursor: pointer; min-height: 32px; }
+.strategy-panel p { overflow-wrap: anywhere; }
+.strategy-approaches { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0; }
+.strategy-approaches button { white-space: normal; min-height: 44px; flex: 1 1 180px; }
+.strategy-approaches button[aria-pressed="true"] { outline: 2px solid var(--accent); outline-offset: 2px; }
+.strategy-approaches .hint { flex-basis: 100%; }
+.money-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.money-grid button { min-width: 0; white-space: normal; text-align: left; padding: 12px; }
+.money-grid small { display: block; margin-top: 6px; line-height: 1.5; overflow-wrap: anywhere; }
+.money-reason:empty, #money-coaching:empty { display: none; }
+@media (max-width: 480px) { .money-grid { grid-template-columns: 1fr; } }
+.version-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-size: .8rem; }
+.version-tools button { min-height: 44px; padding: 6px 10px; font-size: .8rem; }
+
+.personality-block { margin: 12px 0; }
+.personality-details { margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; }
+.personality-details summary { cursor: pointer; min-height: 44px; padding: 10px 12px; box-sizing: border-box; overflow-wrap: anywhere; }
+.personality-details summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.personality-mechanics { padding: 0 12px 10px; overflow-wrap: anywhere; font-size: .85rem; line-height: 1.7; }
+.personality-mechanics p { margin: 6px 0; }

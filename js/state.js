@@ -1,6 +1,7 @@
-import { rollAllTraits, mergeStaticTraitEffects, computePersonalityActionMods } from "./traits.js";
-import { INITIAL_RATING } from "./match.js";
-import { rollPlayerTalents } from "./talents.js";
+import { careerOwned, careerLevel, getCareer } from './career.js?v=1.1.19';
+import { rollAllTraits, mergeStaticTraitEffects, computePersonalityActionMods } from "./traits.js?v=1.1.19";
+import { INITIAL_RATING } from "./match.js?v=1.1.19";
+import { rollPlayerTalents } from "./talents.js?v=1.1.19";
 import {
   patchTraitsForGenius,
   applyGeniusStatBonus,
@@ -9,7 +10,7 @@ import {
   rollExeGlitchForDay,
   computeMaxActionPointsForDay,
   applyDailyMoneyTick,
-} from "./talentRuntime.js";
+} from "./talentRuntime.js?v=1.1.19";
 
 export const RESUME_QUALITY_MAX = 120;
 
@@ -32,7 +33,9 @@ export function clampResumeToCap(state, v) {
  * @param {boolean} [opts.godMode] 作弊码 114514
  */
 export function createInitialState(opts = {}) {
-  const rolled = opts.rolledTraits ?? rollAllTraits();
+  const rolled = opts.rolledTraits ? structuredClone(opts.rolledTraits) : rollAllTraits();
+  rolled.extraDegrees = (rolled.extraDegrees ?? []).filter(x =>
+    (x.id !== 'extra_master' || careerOwned('master')) && (x.id !== 'extra_phd' || careerOwned('phd')));
   const playerTalents = opts.playerTalents ?? rollPlayerTalents();
 
   if (playerTalents.some((t) => t.id === "genius")) {
@@ -45,14 +48,20 @@ export function createInitialState(opts = {}) {
 
   const personalityActionMods = computePersonalityActionMods(rolled.personalities.map((p) => p.id));
 
-  let money = 4800;
+  let money = 4800 + careerLevel('savings') * 200;
   if (playerTalents.some((t) => t.id === "rent")) {
     money -= 200;
   }
 
   const stressMax = playerTalents.some((t) => t.id === "stress_to_power") ? 120 : 100;
+  // Draw once per run: each integer from -5 through +5 is equally likely.
+  const initialQualityVariation = Math.floor(Math.random() * 11) - 5;
 
   const state = {
+    careerRunId: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+    carriedRelic: getCareer().selectedRelic,
+    relicUsed: false,
+    relicInterviewReady: false,
     day: 1,
     maxDays: 30,
     actionPoints: 4,
@@ -72,10 +81,14 @@ export function createInitialState(opts = {}) {
     /** 考公/考研结局用隐藏累加：每次学习按用脑过度、顿悟倍率增加，不对玩家展示 */
     studyPivotHidden: 0,
     vitalFailReason: null,
+    highStressDays: 0,
+    burnoutCheckedDay: null,
+    burnoutEarlyEnd: false,
     stressMax,
     energyMax: playerTalents.some((t) => t.id === "cattle") ? 118 : 100,
     resumeQualityMax: RESUME_QUALITY_MAX,
-    resumeQuality: clamp(45 + (statFx.resumeQuality ?? 0), 0, RESUME_QUALITY_MAX),
+    initialQualityVariation,
+    resumeQuality: clamp(45 + (statFx.resumeQuality ?? 0) + initialQualityVariation, 0, RESUME_QUALITY_MAX),
     hiddenResume: clamp(50 + (statFx.hiddenResume ?? 0), 0, 100),
     hiddenInterview: clamp(45 + (statFx.hiddenInterview ?? 0), 0, 100),
     salaryTierBonus,
@@ -85,6 +98,22 @@ export function createInitialState(opts = {}) {
     jobSearchRating: INITIAL_RATING,
     money,
     debt: 0,
+    coachedStudies: 0,
+    lastWorkDay: null,
+    lastPaidRecoveryDay: null,
+    strategies: [],
+    skippedStrategies: 0,
+    strategyRegularUsed: 0,
+    strategyGrowth: {},
+    strategyBonusGrowth: 0,
+    strategyBonusCore: 0,
+    strategyArchiveCount: 0,
+    strategyDraft: null,
+    strategyPrep: 0,
+    strategyReview: 0,
+    strategyContacts: 0,
+    strategyRhythm: 0,
+    strategyUses: {},
     pathStartup: 0,
     lotteryJackpot: false,
     baseLivingCost: 100,
@@ -103,6 +132,10 @@ export function createInitialState(opts = {}) {
     offers: [],
     endingTags: {},
     eventsByDay: {},
+    entertainmentEventsByDay: {},
+    entertainmentMisses: 0,
+    conditionalCheckDay: null,
+    conditionalEventsByDay: {},
     eventHistory: {},
     eventFollowups: [],
     eventNoticeStreak: 2,
@@ -138,6 +171,9 @@ export function createInitialState(opts = {}) {
   state.actionPoints = state.maxActionPointsPerDay;
 
   applyDailyMoneyTick(state);
+
+  addLog(state, `开局综合素质波动：${initialQualityVariation >= 0 ? '+' : ''}${initialQualityVariation}，初始综合素质 ${state.resumeQuality}。`);
+  if (careerLevel('savings')) addLog(state, `局外求职储备：开局现金 +${careerLevel('savings') * 200}。`);
 
   return state;
 }

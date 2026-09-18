@@ -1,5 +1,5 @@
-import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js';
-import { clampResumeToCap, addLog } from './state.js';
+import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.19';
+import { clampResumeToCap, addLog } from './state.js?v=1.1.19';
 
 const resume = (s, n) => { s.resumeQuality = clampResumeToCap(s, s.resumeQuality + n); };
 const interview = (s, n) => { s.hiddenInterview = Math.max(0, Math.min(100, s.hiddenInterview + n)); };
@@ -123,11 +123,37 @@ const SCENARIOS = {
   },
 };
 
+// Narrative previews conceal outcome amounts, but retain known costs and commitments.
+const CHOICE_PREVIEWS = {
+  evt_network: {
+    original: '接受学长的帮助，先迈出这一步。',
+    review: '精力 -8；请学长指出材料中的问题，两天后等他的回复。临近截止则提前回复。',
+    decline: '自己再准备一段时间。',
+  },
+  evt_mock: {
+    original: '精力 -6；完整体验面试，看看自己的临场表现。',
+    coach: '行动点 -1、精力 -10；留下来仔细拆解回答中的漏洞。',
+    observe: '精力 -2；坐在台下，记下值得留意的问题。',
+  },
+  evt_rumor: {
+    verify: '精力 -6；也许能得到可靠建议，也可能打听一圈仍没有答案。',
+    mute: '不转发未经证实的消息，继续手头的准备。',
+  },
+  evt_side: {
+    original: '精力 -10；把项目做成能向面试官展示的作品。',
+    paid: '行动点 -1、精力 -12；先收约定的 100 元定金，两天后处理交付与尾款。临近截止则提前处理。',
+    decline: '把时间留给求职，不接这单。',
+  },
+};
+
 export function getEventInteraction(event) {
   if (event.interaction) return event.interaction;
   const scenario = SCENARIOS[event.id];
   if (!scenario) return { mode: 'notice', prompt: event.desc, choices: [] };
-  return { mode: scenario.mode ?? 'choice', prompt: scenario.prompt, choices: scenario.choices(event), before: scenario.before?.(event) };
+  const previews = CHOICE_PREVIEWS[event.id];
+  const choices = scenario.choices(event).map(selected => previews?.[selected.id]
+    ? { ...selected, previewHint: previews[selected.id] } : selected);
+  return { mode: scenario.mode ?? 'choice', prompt: scenario.prompt, choices, before: scenario.before?.(event) };
 }
 
 export function eventChoiceUnavailable(state, selected) {

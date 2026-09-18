@@ -1,12 +1,13 @@
-import { addLog, clampResumeToCap } from "./state.js";
-import { materializeCompany, expectedResumePass, updateJobSearchRating } from "./match.js";
+import { hasStrategy, onStrategyAction, spendApproach, onStrategySubmission } from './strategies.js?v=1.1.19';
+import { addLog, clampResumeToCap } from "./state.js?v=1.1.19";
+import { materializeCompany, expectedResumePass, updateJobSearchRating } from "./match.js?v=1.1.19";
 import {
   talentRevealEnergyCost,
   talentApplyEnergyDiscount,
   applyStressDelta,
   applyEnergyDelta,
-} from "./talentRuntime.js";
-import { buildCompaniesForApplySession } from "./companies.js";
+} from "./talentRuntime.js?v=1.1.19";
+import { buildCompaniesForApplySession } from "./companies.js?v=1.1.19";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -33,7 +34,8 @@ export function startApplySession(state) {
     index: 0,
     submitted: 0,
     viewedCount: 0,
-    target: 10,
+    target: hasStrategy(state, 'focus') ? 5 : 10,
+    strategyApproach: 'normal',
     currentRevealed: false,
     materializedIndex: -1,
   };
@@ -69,6 +71,7 @@ export function revealHidden(state) {
   const mx = state.energyMax ?? 100;
   applyEnergyDelta(state, -cost);
   state.applySession.currentRevealed = true;
+  onStrategyAction(state, 'reveal');
   return true;
 }
 
@@ -76,7 +79,8 @@ export function revealHidden(state) {
 export function submitCurrentCompany(state) {
   const s = state.applySession;
   const co = getCurrentCompany(state);
-  if (!co || s.submitted >= s.target) return null;
+  if (!co || state.gameOver || s.submitted >= s.target) return null;
+  if (!spendApproach(state, co)) return null;
 
   const eCost = Math.max(2, 4 - talentApplyEnergyDiscount(state));
   const mx = state.energyMax ?? 100;
@@ -100,8 +104,10 @@ export function submitCurrentCompany(state) {
   });
 
   s.submitted += 1;
+  onStrategySubmission(state);
   s.index += 1;
   s.currentRevealed = false;
+  s.strategyApproach = 'normal';
 
   const msg = `已投递 ${co.name}。HR 约 2–3 个工作日内邮件反馈，届时见分晓。`;
   addLog(state, `第 ${state.day} 天：${msg}`);
@@ -115,6 +121,7 @@ export function skipCurrentCompany(state) {
   state.skippedIds.push(co.id);
   s.index += 1;
   s.currentRevealed = false;
+  s.strategyApproach = 'normal';
   addLog(state, `第 ${state.day} 天：查看下一家，跳过 ${co.name}。`);
   return `已跳过 ${co.name}，无法回头投递该公司。`;
 }
@@ -129,7 +136,7 @@ export function applySessionComplete(state) {
 export function endApplySession(state) {
   const s = state.applySession;
   if (s && s.submitted > 0) {
-    const bump = 1 + Math.floor(Math.random() * 2);
+    const bump = 1 + Math.floor(Math.random() * 2) + (state.playerTalents?.some(t => t.id === "resume_tailor") ? 1 : 0);
     state.resumeQuality = clampResumeToCap(state, state.resumeQuality + bump);
     addLog(state, `第 ${state.day} 天：本轮投递结束，综合素质 +${bump}。`);
   }

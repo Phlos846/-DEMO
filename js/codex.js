@@ -1,11 +1,12 @@
+import { personalityDetailsHtml } from "./personality-ui.js?v=1.1.19";
 /**
  * 图鉴：localStorage 持久化已解锁的性格 / 其他词条 / 天赋 / 事件 / 结局
  */
-import { PERSONALITIES, OTHER_TRAITS } from "./traits.js";
-import { TALENTS, RARITY_CLASS, escapeHtml } from "./talents.js";
-import { EVENT_DEFS } from "./events.js";
-import { FOLLOW_UP_EVENTS } from "./eventChoices.js";
-import { ENDING_CATALOG, getEndingEmoji } from "./endings.js";
+import { PERSONALITIES, OTHER_TRAITS } from "./traits.js?v=1.1.19";
+import { TALENTS, RARITY_CLASS, escapeHtml } from "./talents.js?v=1.1.19";
+import { EVENT_DEFS } from "./events.js?v=1.1.19";
+import { FOLLOW_UP_EVENTS } from "./eventChoices.js?v=1.1.19";
+import { ENDING_CATALOG, getEndingEmoji } from "./endings.js?v=1.1.19";
 
 const STORAGE_KEY = "ar_codex_v1";
 
@@ -26,8 +27,6 @@ export const CODEX_EXTRA_EVENTS = [
   },
 ];
 
-const PERSONALITY_DESC =
-  "性格词条会影响部分行动的消耗与效果（具体数值见本局行动结算与状态栏）。";
 
 function emptySets() {
   return {
@@ -218,8 +217,7 @@ function renderPersonalityPanel() {
   for (const p of PERSONALITIES) {
     if (d.p.has(p.id)) {
       bits.push(`<div class="codex-entry">
-  <div class="codex-entry-head"><span class="codex-entry-title">${escapeHtml(p.name)}</span></div>
-  <p class="codex-entry-desc">${escapeHtml(PERSONALITY_DESC)}</p>
+  ${personalityDetailsHtml(p, "codex")}
 </div>`);
     } else {
       bits.push(renderLockedEntry());

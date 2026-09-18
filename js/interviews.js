@@ -1,8 +1,9 @@
-import { addLog } from "./state.js";
-import { buildSettlementTagParts } from "./companies.js";
-import { expectedInterviewPass, updateJobSearchRating } from "./match.js";
-import { hasTalent } from "./talents.js";
-import { applyStressDelta } from "./talentRuntime.js";
+import { onStrategyRejection, onStrategyOffer } from './strategies.js?v=1.1.19';
+import { addLog } from "./state.js?v=1.1.19";
+import { buildSettlementTagParts } from "./companies.js?v=1.1.19";
+import { expectedInterviewPass, updateJobSearchRating } from "./match.js?v=1.1.19";
+import { hasTalent } from "./talents.js?v=1.1.19";
+import { applyStressDelta } from "./talentRuntime.js?v=1.1.19";
 
 const MAX_INTERVIEWS_PER_NATURAL_DAY = 2;
 
@@ -129,6 +130,7 @@ export function processPendingResumeFeedback(state, options = {}) {
       banner.push(line);
     } else {
       const line = resumeFailLine(co.name);
+      onStrategyRejection(state, co);
       addLog(state, `第 ${state.day} 天：${line}`);
       banner.push(line);
     }
@@ -155,6 +157,10 @@ export function processInterviewsAtDayStart(state, options = {}) {
     const company = job.company;
     const hiddenRevealed = !!job.resumePassContext?.hiddenRevealed;
     const expectedP = expectedInterviewPass(state, company, hiddenRevealed);
+    if (state.relicInterviewReady) {
+      state.relicInterviewReady = false;
+      addLog(state, `面试笔记已用于「${company.name}」的本场面试。`);
+    }
     const pass = roll() < expectedP;
     updateJobSearchRating(state, expectedP, pass ? 1 : 0);
 
@@ -177,6 +183,7 @@ export function processInterviewsAtDayStart(state, options = {}) {
         isPyramidTrap: company.hiddenTag?.id === "hid_pyramid",
       };
       state.offers.push(offer);
+      onStrategyOffer(state);
       bumpEndingWeights(state, company);
       const logLine = pick([
         `第 ${state.day} 天：面试「${company.name}」通过，Offer 已入库。`,
@@ -193,6 +200,7 @@ export function processInterviewsAtDayStart(state, options = {}) {
       }
     } else {
       applyStressDelta(state, 11, "interview_fail");
+      onStrategyRejection(state, company);
       const logLine = pick([
         `第 ${state.day} 天：面试「${company.name}」未通过。`,
         `第 ${state.day} 天：「${company.name}」面试遗憾落选。`,
