@@ -1,13 +1,14 @@
-import { hasStrategy, onStrategyAction, spendApproach, onStrategySubmission } from './strategies.js?v=1.1.19';
-import { addLog, clampResumeToCap } from "./state.js?v=1.1.19";
-import { materializeCompany, expectedResumePass, updateJobSearchRating } from "./match.js?v=1.1.19";
+import { hasStrategy, onStrategyAction, spendApproach, onStrategySubmission } from './strategies.js?v=1.1.42';
+import { recordTaskAction } from './tasks.js?v=1.1.42';
+import { addLog, clampResumeToCap } from "./state.js?v=1.1.42";
+import { materializeCompany, expectedResumePass, updateJobSearchRating } from "./match.js?v=1.1.42";
 import {
   talentRevealEnergyCost,
   talentApplyEnergyDiscount,
   applyStressDelta,
   applyEnergyDelta,
-} from "./talentRuntime.js?v=1.1.19";
-import { buildCompaniesForApplySession } from "./companies.js?v=1.1.19";
+} from "./talentRuntime.js?v=1.1.42";
+import { buildCompaniesForApplySession } from "./companies.js?v=1.1.42";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -29,6 +30,9 @@ export function startApplySession(state) {
   if (order.length < 10) {
     return { ok: false, reason: "本轮公司池异常，无法投递。" };
   }
+  // 把两家普通公司设为冲刺岗位，梗公司保留自己的设定。
+  const candidates = shuffle(order.filter(co => !co.isNetaRef));
+  for (const co of candidates.slice(0, 2)) co.isStretchRole = true;
   state.applySession = {
     order,
     index: 0,
@@ -71,7 +75,7 @@ export function revealHidden(state) {
   const mx = state.energyMax ?? 100;
   applyEnergyDelta(state, -cost);
   state.applySession.currentRevealed = true;
-  onStrategyAction(state, 'reveal');
+  onStrategyAction(state, 'reveal', getCurrentCompany(state)?.id);
   return true;
 }
 
@@ -87,6 +91,7 @@ export function submitCurrentCompany(state) {
   applyEnergyDelta(state, -eCost);
   applyStressDelta(state, 2, "action");
   state.appliedIds.push(co.id);
+  recordTaskAction(state, 'apply', co.id);
 
   const hiddenRevealed = s.currentRevealed;
   const expectedP = expectedResumePass(state, co, hiddenRevealed);

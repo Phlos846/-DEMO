@@ -1,23 +1,27 @@
-import { renderCareerShop, renderRelic } from './career-ui.js?v=1.1.19';
-import { awardCareer } from './career.js?v=1.1.19';
-import { renderStrategies, renderApproaches, renderStrategyCareer } from './strategy-ui.js?v=1.1.19';
-import { recordStrategyCareer, getStrategyCareer } from './strategy-career.js?v=1.1.19';
-import { STRATEGIES, strategyCores, strategyDraft, skipStrategy } from './strategies.js?v=1.1.19';
-import { MONEY_OPTIONS, moneyOptionUnavailable, useMoneyOption, livingBudgetSummary, moneyOptionDetail } from "./economy.js?v=1.1.19";
-import { finishHighStressDay } from "./burnout.js?v=1.1.19";
-import { personalityDetailsHtml } from "./personality-ui.js?v=1.1.19";
-import { recruitmentLabel } from "./recruitment.js?v=1.1.19";
-import { createInitialState, addLog } from "./state.js?v=1.1.19";
-import { getEventInteraction, eventChoiceUnavailable } from "./eventChoices.js?v=1.1.19";
-import { recordEventAppearance } from "./eventRecurrence.js?v=1.1.19";
-import { educationTagClass } from "./eduTags.js?v=1.1.19";
-import { formatRolledTraitsLog, rollAllTraits } from "./traits.js?v=1.1.19";
+import { renderCareerShop, renderRelic } from './career-ui.js?v=1.1.42';
+import { syncTasks, settleTaskDay, taskCanFinishEarly, taskEffectText, activeTasks } from './tasks.js?v=1.1.42';
+import { renderTask } from './tasks-ui.js?v=1.1.42';
+import { grantTaskInterviews } from './task-opportunities.js?v=1.1.42';
+import { resourceSnapshot, showResourceFeedback, renderResourceFeedback, nextDayInterviewPreview } from './experience.js?v=1.1.42';
+import { awardCareer, careerUnlocked } from './career.js?v=1.1.42';
+import { renderStrategies, renderApproaches, renderStrategyCareer } from './strategy-ui.js?v=1.1.42';
+import { recordStrategyCareer, getStrategyCareer } from './strategy-career.js?v=1.1.42';
+import { STRATEGIES, strategyCores, strategyDraft, skipStrategy } from './strategies.js?v=1.1.42';
+import { MONEY_OPTIONS, moneyOptionUnavailable, useMoneyOption, livingBudgetSummary, moneyOptionDetail } from "./economy.js?v=1.1.42";
+import { finishHighStressDay } from "./burnout.js?v=1.1.42";
+import { personalityDetailsHtml } from "./personality-ui.js?v=1.1.42";
+import { recruitmentLabel } from "./recruitment.js?v=1.1.42";
+import { createInitialState, addLog } from "./state.js?v=1.1.42";
+import { getEventInteraction, eventChoiceUnavailable } from "./eventChoices.js?v=1.1.42";
+import { recordEventAppearance } from "./eventRecurrence.js?v=1.1.42";
+import { educationTagClass } from "./eduTags.js?v=1.1.42";
+import { formatRolledTraitsLog, rollAllTraits } from "./traits.js?v=1.1.42";
 import {
   formatTalentsLog,
   talentLineBubbleHtml,
   talentNumericSummaryBubbleHtml,
   escapeHtml,
-} from "./talents.js?v=1.1.19";
+} from "./talents.js?v=1.1.42";
 import {
   rollExeGlitchForDay,
   computeMaxActionPointsForDay,
@@ -31,13 +35,13 @@ import {
   getEndingTalentNumericHints,
   applyBlackTalentMorning,
   applyEnergyDelta,
-} from "./talentRuntime.js?v=1.1.19";
+} from "./talentRuntime.js?v=1.1.42";
 import {
   applyDailyAction,
   minCashForFunAction,
   STUDY_OVERLOAD_GAIN_MULT,
   STUDY_RECOVERY_BUFF_MULT,
-} from "./actions.js?v=1.1.19";
+} from "./actions.js?v=1.1.42";
 import {
   planEventsForCurrentDay,
   resolveEvent,
@@ -46,7 +50,7 @@ import {
   tryStudyOverloadEvent,
   tryStudyBreakthroughEvent,
   industrySalaryBuffLabelZh,
-} from "./events.js?v=1.1.19";
+} from "./events.js?v=1.1.42";
 import {
   startApplySession,
   getCurrentCompany,
@@ -56,8 +60,8 @@ import {
   skipCurrentCompany,
   applySessionComplete,
   endApplySession,
-} from "./applications.js?v=1.1.19";
-import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js?v=1.1.19";
+} from "./applications.js?v=1.1.42";
+import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js?v=1.1.42";
 import {
   computeEnding,
   endingSummaryLines,
@@ -65,16 +69,16 @@ import {
   getEndingEmoji,
   getBestOffer,
   shouldPromptPlayerOfferChoice,
-} from "./endings.js?v=1.1.19";
-import { pruneExpiredTransientEffects } from "./transientEffects.js?v=1.1.19";
-import { computeEndOfferStarRating } from "./companies.js?v=1.1.19";
+} from "./endings.js?v=1.1.42";
+import { pruneExpiredTransientEffects } from "./transientEffects.js?v=1.1.42";
+import { computeEndOfferStarRating } from "./companies.js?v=1.1.42";
 import {
   renderCodex,
   unlockFromRolledTraits,
   unlockTalentsFromState,
   unlockEvent,
   unlockEnding,
-} from "./codex.js?v=1.1.19";
+} from "./codex.js?v=1.1.42";
 
 let state = null;
 let pendingEvent = null;
@@ -226,6 +230,7 @@ function bindCodex() {
   if (closeBtn) {
     closeBtn.addEventListener("click", () => {
       modal.classList.add("hidden");
+      scheduleStrategyPrompt();
     });
   }
   modal.querySelectorAll("[data-codex-tab]").forEach((btn) => {
@@ -294,8 +299,16 @@ function renderStatusEffects() {
 
 function refreshMain() {
   if (!state) return;
+  syncTasks(state);
+  grantTaskInterviews(state);
+  renderTask(state, refreshMain);
+  renderResourceFeedback(state);
+  $("next-day-interviews").textContent = nextDayInterviewPreview(state);
+  $("next-day-interviews").classList.toggle('hidden', !$("next-day-interviews").textContent);
   $("day-num").textContent = String(state.day);
   $("ap").textContent = `${state.actionPoints} / ${state.maxActionPointsPerDay}`;
+  $("mobile-day").textContent = String(state.day);
+  $("mobile-ap").textContent = `${state.actionPoints} / ${state.maxActionPointsPerDay}`;
   $("res-ap").textContent = String(state.actionPoints);
   const rm = $("res-money");
   if (rm) rm.textContent = String(Math.round(state.money ?? 0));
@@ -310,6 +323,13 @@ function refreshMain() {
   $("res-energy").textContent = String(Math.round(state.energy));
   const em = $("res-energy-max");
   if (em) em.textContent = String(state.energyMax ?? 100);
+  for (const [key, risk] of [['energy', state.energy < 20], ['stress', state.stress > 80]]) {
+    const meter = $(`${key}-meter`);
+    meter.max = state[`${key}Max`] ?? 100;
+    meter.value = state[key];
+    $(`${key}-resource`).classList.toggle('resource-at-risk', risk);
+    $(`${key}-warning`).classList.toggle('hidden', !risk);
+  }
   $("res-resume").textContent = String(Math.round(state.resumeQuality));
   const rmax = $("res-resume-max");
   if (rmax) rmax.textContent = String(state.resumeQualityMax ?? 120);
@@ -335,6 +355,7 @@ function refreshMain() {
 
   const offers = $("offer-list");
   const empty = $("offer-empty");
+  empty.closest('.card').classList.toggle('offer-empty-state', !state.offers.length);
   offers.innerHTML = "";
   if (state.offers.length === 0) {
     empty.classList.remove("hidden");
@@ -358,6 +379,7 @@ function refreshMain() {
   renderRelic(state, refreshMain);
   $("money-budget").textContent = livingBudgetSummary(state);
   $("money-coaching").textContent = state.coachedStudies > 0 ? `辅导剩余 ${state.coachedStudies} 次学习` : '';
+  $("money-coaching").classList.toggle('hidden', !(state.coachedStudies > 0));
   document.querySelectorAll('[data-money-option]').forEach(btn => {
     const reason = moneyOptionUnavailable(state, btn.dataset.moneyOption);
     btn.disabled = !!reason;
@@ -366,6 +388,7 @@ function refreshMain() {
   });
   document.querySelectorAll(".action-btn").forEach((btn) => {
     const act = btn.dataset.action;
+    btn.querySelector('.action-cost').textContent = state.funNextActionFree ? '0 行动点 · 本次免费' : `${act === 'study' ? 2 : 1} 行动点`;
     let dis = !!state.gameOver;
     if (act === "study") dis = dis || state.actionPoints < 2;
     else dis = dis || !canAct;
@@ -374,6 +397,8 @@ function refreshMain() {
     btn.disabled = dis;
   });
   $("btn-end-day").disabled = state.actionPoints > 0 || state.gameOver;
+  $("btn-end-day").classList.toggle('primary', !$("btn-end-day").disabled);
+  $("btn-end-day").classList.toggle('secondary', $("btn-end-day").disabled);
 
   const od = $("btn-overdraft");
   if (od) {
@@ -414,6 +439,23 @@ function scheduleStrategyPrompt() {
   strategyPromptTimer = setTimeout(() => {
     if (!state || state.gameOver || state.applySession || $("screen-main").classList.contains('hidden')) return;
     if (document.querySelector('.modal:not(.hidden), dialog[open]')) return;
+    const task = activeTasks(state).find(t => !t.announced);
+    if (task) {
+      $("task-notice-title").textContent = `${task.penalty ? '新的限时事务' : '新的限时机会'} · ${task.name}`;
+      $("task-notice-deadline").textContent = `第 ${task.deadline} 天结束截止 · ${taskCanFinishEarly(task) ? '达标即结算' : '截止日结束时统一校核'}`;
+      $("task-notice-story").textContent = task.story;
+      const goals = $("task-notice-goals"); goals.replaceChildren();
+      for (const goal of task.goals) {
+        const item = document.createElement('li'); item.textContent = `${goal.label}：${goal.progress} / ${goal.target}`; goals.append(item);
+      }
+      $("task-notice-reward").textContent = `奖励：${taskEffectText(task.reward)}`;
+      $("task-notice-penalty").textContent = task.penalty ? `逾期：${taskEffectText(task.penalty)}` : '';
+      $("task-notice-penalty").className = task.penalty ? 'task-penalty' : 'hidden';
+      $("task-notice-modal").showModal();
+      task.announced = true;
+      $("btn-task-notice-ok").focus();
+      return;
+    }
     if (strategyDraft(state).length) {
       renderStrategies(state, refreshMain);
       $("strategy-choice-modal").showModal();
@@ -423,6 +465,9 @@ function scheduleStrategyPrompt() {
 
 function runMorningPhase() {
   if (!state || state.gameOver) return;
+  syncTasks(state);
+  checkInstantFail(state);
+  if (state.gameOver) { tryGameOver(); return; }
   applyBlackTalentMorning(state);
   const nep = tryNepotismOffer(state);
   if (nep) addLog(state, nep);
@@ -473,6 +518,8 @@ function showEventModal(event) {
   if (event.id) unlockEvent(event.id);
   $("event-title").textContent = pendingEvent.title;
   $("event-desc").textContent = interaction.prompt;
+  $("event-desc").classList.remove('hidden');
+  updateEventQueueLabel();
   const emo = $("event-emoji");
   if (emo) emo.textContent = pendingEvent.emoji ?? "📋";
   const choices = $("event-choices");
@@ -492,6 +539,7 @@ function showEventModal(event) {
       $("event-result").textContent += "继续后进入本局结局。";
     }
     $("modal-event").classList.remove("hidden");
+    updateEventQueueLabel();
     $("btn-event-ok").focus();
     return;
   }
@@ -508,20 +556,32 @@ function showEventModal(event) {
     button.append(title, hint);
     button.addEventListener("click", () => {
       if (pendingEvent !== event || eventResult || state.gameOver) return;
+      const before = resourceSnapshot(state);
       const result = resolveEvent(state, event, selected.id);
       if (!result.ok) return;
       eventResult = result;
       if (event.id) unlockEvent(event.id);
       choices.classList.add("hidden");
+      $("event-desc").classList.add('hidden');
+      $("event-cost-note").classList.add('hidden');
       $("event-result").textContent = `${started.summary ? `先前影响：${started.summary}。` : ""}你选择了「${result.label}」。${result.summary}。${result.immediateSettle ? "继续后进入本局结局。" : ""}`;
       $("event-result").classList.remove("hidden");
       $("btn-event-ok").classList.remove("hidden");
+      updateEventQueueLabel();
+      showResourceFeedback(state, before, event.title);
       $("btn-event-ok").focus();
     });
     choices.appendChild(button);
   }
   $("modal-event").classList.remove("hidden");
   choices.querySelector("button:not(:disabled)")?.focus();
+}
+
+function updateEventQueueLabel() {
+  const remaining = eventResult?.immediateSettle || state?.gameOver ? 0 : state?.eventModalQueue?.length ?? 0;
+  $("event-queue-count").textContent = remaining ? `之后还有 ${remaining} 条事件待处理` : '';
+  $("event-queue-count").classList.toggle('hidden', !remaining);
+  $("btn-event-ok").textContent = eventResult?.immediateSettle ? '查看结局' : remaining ? '继续下一条' : '确定';
 }
 
 function showNextInterviewResultModal() {
@@ -567,10 +627,14 @@ function closeEventModal() {
 }
 
 function renderEndScreen(end) {
+  const wasUnlocked = careerUnlocked();
   const pointReward = awardCareer(state, end);
   $("end-career-reward").textContent = pointReward.text;
-  renderCareerShop(renderStrategyCareer);
   const careerResult = recordStrategyCareer(state);
+  if (!wasUnlocked && careerUnlocked()) state.careerJustUnlocked = true;
+  $("career-unlock-guide").classList.toggle('hidden', !state.careerJustUnlocked);
+  refreshCareerVisibility();
+  renderCareerShop(renderStrategyCareer);
   $("btn-reroll-traits").disabled = getStrategyCareer().runs < 1;
   const unlockedNames = careerResult.unlocked.map(id => STRATEGIES.find(x => x.id === id).name);
   $("end-strategy-unlocks").textContent = careerResult.cheat ? '作弊局不记录策略成长。'
@@ -661,14 +725,16 @@ function renderOfferPickScreen() {
   const list = $("offer-pick-list");
   const btn = $("btn-offer-pick-confirm");
   if (!list || !state?.offers?.length) return;
-  const offers = state.offers;
+  const offers = state.offers.map((o, i) => ({
+    o, i, rating: computeEndOfferStarRating(o, { visibleOnly: true }),
+  })).sort((a, b) => b.rating.stars - a.rating.stars || a.i - b.i);
   list.innerHTML = offers
     .map(
-      (o, i) => `<div class="offer-pick-option"><label class="offer-pick-row">
+      ({ o, i, rating }) => `<div class="offer-pick-option"><label class="offer-pick-row">
   <input type="radio" name="offer-pick" value="${i}" />
   <span class="offer-pick-main"><span class="offer-pick-logo" aria-hidden="true">${o.logo ?? "💼"}</span>
   <span class="offer-pick-name">${escapeHtml(o.name ?? "")}</span>
-  <span class="offer-pick-tier muted">${escapeHtml(o.salaryTier ?? "薪资面议")}</span></span>
+  <span class="offer-pick-tier muted">${escapeHtml(o.salaryTier ?? "薪资面议")}</span><span class="offer-pick-stars ${rating.stars >= 6 ? "offer-pick-stars--premium" : rating.stars < 0 ? "offer-pick-stars--negative" : ""}">★ ${rating.stars} 星</span></span>
 </label>
 <details class="offer-pick-details">
   <summary>查看「${escapeHtml(o.name ?? "该公司")}」的词条</summary>
@@ -694,7 +760,7 @@ function tryGameOver() {
   if (endEl && !endEl.classList.contains("hidden")) return;
   state.gameOver = true;
   const preliminary = computeEnding(state, { skipPyramidCheck: true });
-  if (state.burnoutEarlyEnd) { renderEndScreen(preliminary); return; }
+  if (state.burnoutEarlyEnd || state.eventImmediateEnding?.id) { renderEndScreen(preliminary); return; }
 
   if ((state.offers?.length ?? 0) === 1) {
     state.playerChosenOffer = state.offers[0];
@@ -720,6 +786,9 @@ function tryGameOver() {
 
 function advanceDay() {
   if (finishHighStressDay(state)) { refreshMain(); tryGameOver(); return; }
+  settleTaskDay(state);
+  checkInstantFail(state);
+  if (state.gameOver) { refreshMain(); tryGameOver(); return; }
   const leavingDay = state.day;
   state.day += 1;
   pruneExpiredTransientEffects(state);
@@ -774,10 +843,12 @@ function bindMainActions() {
     btn.innerHTML = `<strong>${option.label}</strong><small>${option.detail}</small><small class="money-reason"></small>`;
     btn.addEventListener('click', () => {
       if (!state) return;
+      const before = resourceSnapshot(state);
       const result = useMoneyOption(state, option.id);
       if (!result.ok) return;
       addLog(state, `第 ${state.day} 天：${result.note}`);
       refreshMain();
+      showResourceFeedback(state, before, option.label, option.id === 'recover' ? ['energy'] : []);
     });
     moneyGrid.appendChild(btn);
   }
@@ -790,6 +861,7 @@ function bindMainActions() {
       } else if (state.actionPoints <= 0) {
         return;
       }
+      const before = resourceSnapshot(state);
 
       if (action === "apply") {
         if (state.energy < 10) return;
@@ -807,6 +879,7 @@ function bindMainActions() {
         state.actionPoints -= apDed;
         addLog(state, `第 ${state.day} 天：${note}`);
         refreshMain();
+        showResourceFeedback(state, before, '准备投递');
         renderApplyScreen();
         showScreen("screen-apply");
         return;
@@ -822,6 +895,7 @@ function bindMainActions() {
         state.actionPoints -= apDed;
         addLog(state, `第 ${state.day} 天：${note}`);
         refreshMain();
+        showResourceFeedback(state, before, '娱乐');
         if (!state.gameOver) {
           const bonus = tryEntertainmentEvent(state);
           if (bonus) {
@@ -840,6 +914,7 @@ function bindMainActions() {
       state.actionPoints -= apDed;
       addLog(state, `第 ${state.day} 天：${note}`);
       refreshMain();
+      showResourceFeedback(state, before, action === 'study' ? '学习' : '休息', action === 'study' ? ['resumeQuality', 'hiddenResume', 'hiddenInterview'] : ['energy']);
       if (action === "study" && !state.gameOver) {
         const breakthrough = tryStudyBreakthroughEvent(state);
         const ev = breakthrough ?? tryStudyOverloadEvent(state);
@@ -887,6 +962,7 @@ function bindMainActions() {
 }
 
 function qualityLabel(q) {
+  if (q === "premium") return "◆ 顶薪";
   if (q === "bad") return "坏";
   if (q === "excellent") return "极好";
   if (q === "good") return "好";
@@ -939,7 +1015,7 @@ function buildEndOfferTagsHtml(best, revealHidden = true) {
   for (const p of st.parts ?? []) {
     const q = p.quality ?? "normal";
     bits.push(
-      `<span class="tag end-offer-tag"><span class="end-offer-tag-label">${escapeHtml(p.label)}</span><span class="tag-quality tag-q-${q}">${qualityLabel(q)}</span></span>`,
+      `<span class="tag end-offer-tag ${q === "premium" ? "tag-premium" : ""}"><span class="end-offer-tag-label">${escapeHtml(p.label)}</span><span class="tag-quality tag-q-${q}">${qualityLabel(q)}</span></span>`,
     );
   }
   if (st.hidden) {
@@ -951,6 +1027,7 @@ function buildEndOfferTagsHtml(best, revealHidden = true) {
   return bits.join(" ");
 }
 
+let applyOperationBusy = false;
 function renderApplyScreen() {
   const s = state.applySession;
   if (!s) return;
@@ -962,11 +1039,14 @@ function renderApplyScreen() {
   $("apply-count").textContent = String(s.submitted);
   $("apply-viewed").textContent = String(s.viewedCount ?? 0);
   $("apply-total").textContent = String(s.order.length);
+  $("apply-exit-summary").textContent = '已投简历继续等待反馈。';
+  renderResourceFeedback(state);
   const view = $("company-view");
   const btnApply = $("btn-apply-co");
   const btnNext = $("btn-next-co");
   const btnLeave = $("btn-leave-apply");
   const btnSide = $("btn-side-ask");
+  for (const btn of [btnApply, btnNext, btnLeave]) btn.disabled = applyOperationBusy || state.gameOver;
 
   if (!co || s.submitted >= s.target || applySessionComplete(state)) {
     view.innerHTML =
@@ -985,7 +1065,7 @@ function renderApplyScreen() {
   btnApply.classList.remove("hidden");
   btnNext.classList.remove("hidden");
   btnLeave.classList.remove("hidden");
-  btnLeave.textContent = "结束本轮投递";
+  btnLeave.textContent = "结束本轮，返回今日安排";
   $("apply-target").textContent = String(s.target);
   $("apply-target-hint").textContent = String(s.target);
   renderApproaches(state, renderApplyScreen);
@@ -1013,9 +1093,9 @@ function renderApplyScreen() {
       <span class="company-logo" aria-hidden="true">${logo}</span>
       <h3 class="company-title">${co.name}</h3>
     </div>
-    <div class="tag-block"><span class="tag-label">薪资</span> <span class="tag">${sal.label}<span class="tag-quality tag-q-${sal.quality}">${qualityLabel(sal.quality)}</span></span></div>
-    <div class="tag-block"><span class="tag-label">待遇</span> <span class="tag">${tr.label}<span class="tag-quality tag-q-${tr.quality}">${qualityLabel(tr.quality)}</span></span></div>
-    <div class="tag-block"><span class="tag-label">社会风评</span> ${reps}</div>
+    <div class="company-salary-row"><span class="company-salary ${sal.quality === "premium" ? "tag-premium" : ""}">${sal.label}</span>${co.isStretchRole ? '<span class="tag stretch-role-tag">↗ 冲刺岗位</span>' : ""}</div>
+    <div class="company-facts"><div class="tag-block"><span class="tag-label">待遇</span> <span class="tag">${tr.label}<span class="tag-quality tag-q-${tr.quality}">${qualityLabel(tr.quality)}</span></span></div>
+    <div class="tag-block"><span class="tag-label">风评</span> ${reps}</div></div>
     ${hidBlock}
     <p class="muted">招聘情况：${recruitmentLabel(co)}</p>
   `;
@@ -1025,7 +1105,7 @@ function renderApplyScreen() {
     const c = talentRevealEnergyCost(state);
     btnSide.textContent = `侧面打听（消耗${c}精力）`;
     const lowE = state.energy < 15;
-    btnSide.disabled = !canReveal(state);
+    btnSide.disabled = applyOperationBusy || !canReveal(state);
     if (lowE) {
       btnSide.title = "精力低于 15 时无法侧面打听";
     } else {
@@ -1038,29 +1118,50 @@ function renderApplyScreen() {
   updateVitalFx();
 }
 
+function applyOperation(text) {
+  state.lastActionFeedback = { day: state.day, text };
+  renderResourceFeedback(state);
+}
+function guardApplyOperation(work) {
+  return () => {
+    if (applyOperationBusy || !state?.applySession || state.gameOver) return;
+    applyOperationBusy = true;
+    renderApplyScreen();
+    try { work(); }
+    finally { setTimeout(() => { applyOperationBusy = false; if (state?.applySession) renderApplyScreen(); }, 350); }
+  };
+}
 function bindApplyScreen() {
-  $("btn-side-ask").addEventListener("click", () => {
+  $("btn-side-ask").addEventListener("click", guardApplyOperation(() => {
+    const before = resourceSnapshot(state);
     if (revealHidden(state)) {
       addLog(state, `第 ${state.day} 天：侧面打听，获知隐藏信息。`);
       renderApplyScreen();
       refreshMain();
+      showResourceFeedback(state, before, '侧面打听');
     }
-  });
+  }));
 
-  $("btn-apply-co").addEventListener("click", () => {
-    submitCurrentCompany(state);
+  $("btn-apply-co").addEventListener("click", guardApplyOperation(() => {
+    const name = getCurrentCompany(state)?.name;
+    const before = resourceSnapshot(state);
+    if (!submitCurrentCompany(state)) return;
     if (state.applySession && applySessionComplete(state)) {
       endApplySession(state);
       showScreen("screen-main");
       refreshMain();
+      showResourceFeedback(state, before, `已投递「${name}」，本轮结束`, [], '约 2～3 天后反馈');
       return;
     }
     renderApplyScreen();
     refreshMain();
-  });
+    showResourceFeedback(state, before, `已投递「${name}」`, [], '约 2～3 天后反馈');
+  }));
 
-  $("btn-next-co").addEventListener("click", () => {
-    skipCurrentCompany(state);
+  $("btn-next-co").addEventListener("click", guardApplyOperation(() => {
+    const name = getCurrentCompany(state)?.name;
+    if (!skipCurrentCompany(state)) return;
+    applyOperation(`已跳过「${name}」，本轮不能再投递该公司。`);
     if (applySessionComplete(state) && state.applySession.submitted < state.applySession.target) {
       addLog(state, `第 ${state.day} 天：本轮公司已全部查看，投递结束。`);
       endApplySession(state);
@@ -1076,16 +1177,18 @@ function bindApplyScreen() {
     }
     renderApplyScreen();
     refreshMain();
-  });
+  }));
 
-  $("btn-leave-apply").addEventListener("click", () => {
+  $("btn-leave-apply").addEventListener("click", guardApplyOperation(() => {
     if (!state?.applySession || state.gameOver) return;
     const session = state.applySession;
+    const before = resourceSnapshot(state);
     addLog(state, `主动结束本轮：已查看 ${session.viewedCount ?? 0}/${session.order.length} 家公司，已投递 ${session.submitted} 份。已投简历保留并继续等待反馈。`);
     endApplySession(state);
     showScreen("screen-main");
     refreshMain();
-  });
+    showResourceFeedback(state, before, `本轮结束 · 已投 ${session.submitted} 份`);
+  }));
 }
 
 function bindRestart() {
@@ -1193,10 +1296,19 @@ function bindOfferPick() {
   });
 }
 
+function refreshCareerVisibility() {
+  const unlocked = careerUnlocked();
+  document.querySelectorAll('[data-career-gated]').forEach(el => el.classList.toggle('hidden', !unlocked));
+}
+
 function bindGrowthDialogs() {
+  const taskNotice = $("task-notice-modal");
+  $("btn-task-notice-ok").addEventListener('click', () => taskNotice.close());
+  taskNotice.addEventListener('close', scheduleStrategyPrompt);
   const career = $("career-modal");
   for (const id of ['btn-career-start', 'btn-career-end']) {
     $(id).addEventListener('click', () => {
+      if (!careerUnlocked()) return;
       renderCareerShop(renderStrategyCareer);
       renderStrategyCareer();
       if (!career.open) career.showModal();
@@ -1229,9 +1341,9 @@ renderStartTraitPreview();
 unlockFromRolledTraits(previewRolled);
 
 const TUTORIAL_STORAGE_KEY = "ar_tutorial_seen_v1";
-/** 新手说明，≤45 字 */
+/** Keep the first-run guide focused on the playable loop. */
 const TUTORIAL_INTRO =
-  "秋招模拟器：三十天投简历、刷脸、抗压，Offer随缘——输了重开，反正比真秋招便宜。";
+  "秋招开始了。接下来的 30 天，你需要准备简历、寻找岗位，也给自己留出休息的时间。每天的行动点有限，先选择一个求职策略，再安排今天要做的事。具体规则可在「行动规则与透支说明」中查看。";
 
 function bindTutorial() {
   const modal = $("modal-tutorial");
@@ -1264,6 +1376,7 @@ function maybeShowTutorial() {
 
 bindTutorial();
 renderStrategyCareer();
+refreshCareerVisibility();
 renderCareerShop(renderStrategyCareer);
 maybeShowTutorial();
 

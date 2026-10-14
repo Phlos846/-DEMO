@@ -1,5 +1,6 @@
-import { applyEnergyDelta, applyMoneyDelta, applyStressDelta } from './talentRuntime.js?v=1.1.19';
-import { strategyUnlocked } from './strategy-career.js?v=1.1.19';
+import { applyEnergyDelta, applyMoneyDelta, applyStressDelta } from './talentRuntime.js?v=1.1.42';
+import { strategyUnlocked } from './strategy-career.js?v=1.1.42';
+import { recordTaskAction } from './tasks.js?v=1.1.42';
 export const STRATEGY_DAYS = [1, 6, 11, 16, 21, 26];
 
 export const STRATEGIES = [
@@ -92,7 +93,7 @@ export function strategyDraft(s) {
     const owned = s.strategyGrowth?.[decision.owner] ?? [];
     const pool = decision.kind === 'core' ? availableCores(s)
       : STRATEGIES.filter(x => (x.requires === decision.owner || x.generic) && !owned.includes(x.id) && strategyUnlocked(x.id));
-    if (decision.kind === 'growth' || strategyCores(s).length) {
+    {
       for (let i = pool.length - 1; i > 0; i--) {
         const j = Math.floor(Math.random() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]];
       }
@@ -101,7 +102,7 @@ export function strategyDraft(s) {
     if (decision.kind === 'growth') {
       const exclusive = pool.find(x => x.requires === decision.owner);
       offered = exclusive ? [exclusive, ...pool.filter(x => x !== exclusive)].slice(0, 3) : pool.slice(0, 3);
-    } else if (strategyCores(s).length) offered = pool.slice(0, 3);
+    } else offered = pool.slice(0, 3);
     s.strategyDraft = { key, ids: offered.map(x => x.id) };
   }
   return s.strategyDraft.ids.map(id => STRATEGIES.find(x => x.id === id));
@@ -126,7 +127,8 @@ export function skipStrategy(s) {
   strategyLog(s, '放弃本次选择；未获得成长，不计入 3 项成长进度。');
   return true;
 }
-export function onStrategyAction(s, action) {
+export function onStrategyAction(s, action, companyId) {
+  recordTaskAction(s, action, companyId);
   if (action === 'rest') applyEnergyDelta(s, 4 * strategyLevel(s, 'general_rest'));
   if (action === 'fun') applyStressDelta(s, -3 * strategyLevel(s, 'general_fun'), 'action');
   if (action === 'study') {

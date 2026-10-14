@@ -12,12 +12,12 @@ import {
   getFlatTagLabels,
   hashSeed,
   pickSeeded,
-} from "./companies.js?v=1.1.19";
-import { getRecruitmentProfile, recruitmentModifier, interviewConditionModifier } from "./recruitment.js?v=1.1.19";
-import { strategyPassBonus } from './strategies.js?v=1.1.19';
-import { hasTalent } from "./talents.js?v=1.1.19";
-import { talentPassBonus } from "./talentRuntime.js?v=1.1.19";
-import { getNetaPresetById } from "./netaCompanies.js?v=1.1.19";
+} from "./companies.js?v=1.1.42";
+import { getRecruitmentProfile, recruitmentModifier, interviewConditionModifier } from "./recruitment.js?v=1.1.42";
+import { strategyPassBonus } from './strategies.js?v=1.1.42';
+import { hasTalent } from "./talents.js?v=1.1.42";
+import { talentPassBonus } from "./talentRuntime.js?v=1.1.42";
+import { getNetaPresetById } from "./netaCompanies.js?v=1.1.42";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -69,7 +69,7 @@ export function countTagQualities(tags) {
   let normal = 0;
   let bad = 0;
   const q = (x) => {
-    if (x === "good" || x === "excellent") good += 1;
+    if (x === "good" || x === "excellent" || x === "premium") good += 1;
     else if (x === "bad") bad += 1;
     else normal += 1;
   };
@@ -148,7 +148,7 @@ function marketAlignmentMod(state, company) {
 
 /** 招聘难度归一化，仅用于展示。 */
 export function computeCompanyDifficulty(company) {
-  return clamp((1.1232 - recruitmentModifier(company)) / (1.1232 - .72), 0, 1);
+  return clamp((1.1232 - recruitmentModifier(company)) / (1.1232 - .432), 0, 1);
 }
 
 function is211Science(state) {
@@ -165,12 +165,12 @@ function salaryLowWanFromCompany(company) {
   return salaryLowWanFromLabel(company.tags?.salary?.label ?? "");
 }
 
-/** 12w 以下坏、12w–18w（含12不含18）一般、18w–25w（不含25）好、25w 及以上极好 */
+/** 12w 以下坏、12w–18w（含12不含18）一般、18w–25w（不含25）好、25w–32w 极好、32w 及以上顶薪 */
 function salaryQualityFromAnnualLowWan(lowWan) {
   if (lowWan < 12) return "bad";
   if (lowWan < 18) return "normal";
   if (lowWan < 25) return "good";
-  return "excellent";
+  return lowWan >= 32 ? "premium" : "excellent";
 }
 
 /** 211+理科 对特定薪资带的额外修正（乘性） */
@@ -191,7 +191,8 @@ function salarySampleMuForState(state) {
   const n = SALARY_BANDS_META.length;
   const targetIdx = targetSalaryTierIndexForEduTier(eduTier);
   const rq = resumeQualityNorm(state);
-  const spreadBase = (n - 1) * (0.48 + 0.22 * bias);
+  // 固定原有薪资中心，扩充稀有档不推高所有岗位。
+  const spreadBase = 24 * (0.48 + 0.22 * bias);
   const legacyShift = educationSalaryMuShift(eduTier ?? 3);
   let mu = 0.63 * targetIdx + 0.37 * (spreadBase + legacyShift);
   mu += rq * 5;
@@ -284,7 +285,7 @@ export function expectedInterviewPass(state, company, hiddenRevealed) {
   if (hasTalent(state, "stage_fright")) p *= 0.87;
 
 
-  return clamp(p + strategyPassBonus(company, 'interview') + (state.relicInterviewReady ? .15 : 0), 0.025, 0.92) * interviewConditionModifier(state);
+  return clamp(p + strategyPassBonus(company, 'interview') + (state.relicInterviewReady ? .15 : 0) + (company.taskInterviewBonus ?? 0), 0.025, 0.92) * interviewConditionModifier(state);
 }
 
 export function updateJobSearchRating(state, expectedProb, actualOne) {
@@ -306,10 +307,11 @@ function educationSalaryMuShift(eduTier) {
 /**
  * 薪资抽样：强锚定「该学历期望档」中位数 + 匹配分扩散；综合素质高时整体右移（最多约 +5 个薪资带，约 +5w）。
  */
-function salaryWeightsForState(state, bias) {
+function salaryWeightsForState(state) {
   const n = SALARY_BANDS_META.length;
   const mu = salarySampleMuForState(state);
-  const sigma = Math.max(3.1, 4.9 - 0.7 * Math.abs(bias));
+  // 固定分布宽度，使 ELO 上升只右移薪资中心，不压缩顶薪尾部。
+  const sigma = 4.9;
   const w = [];
   for (let i = 0; i < n; i++) {
     w.push(Math.exp(-0.5 * ((i - mu) / sigma) * ((i - mu) / sigma)));
@@ -317,9 +319,14 @@ function salaryWeightsForState(state, bias) {
   return w;
 }
 
+function pickStretchSalaryIndex(state) {
+  const roll = rnd();
+  const boost = roll < 0.6 ? 3 : roll < 0.9 ? 4 : 5;
+  return Math.min(SALARY_BANDS_META.length - 1, Math.ceil(salarySampleMuForState(state)) + boost);
+}
+
 function pickSalaryIndexByRating(seed, state) {
-  const bias = ratingToBias(state.jobSearchRating ?? INITIAL_RATING);
-  const w = salaryWeightsForState(state, bias);
+  const w = salaryWeightsForState(state);
   const sum = w.reduce((a, b) => a + b, 0);
   let r = ((hashSeed(seed) >>> 0) / 4294967296 + rnd() * 0.12) % 1;
   r *= sum;
@@ -381,7 +388,7 @@ function weightedChoose(items, seed) {
  */
 function tagQualityWeightsForEducationSalary(eduTier, salIdx) {
   const n = SALARY_BANDS_META.length;
-  const t = n > 1 ? salIdx / (n - 1) : 0.5;
+  const t = Math.min(1, salIdx / 24);
   let goodBoost = 1;
   let normalBoost = 1;
   let badBoost = 1;
@@ -591,19 +598,10 @@ export function materializeCompany(state, shell) {
   const rating = state.jobSearchRating;
   const seed = shell.baseSeed;
   const eduTier = state.traits?.education?.tier ?? 3;
-  let salIdx = pickSalaryIndexByRating(seed, state);
-  if (is211Science(state)) {
-    const r = rnd();
-    if (r < 0.42) {
-      const targetLow = 15 + Math.floor(rnd() * 3);
-      const idx = SALARY_BANDS_META.findIndex((b) => b.label.startsWith(`年薪${targetLow}万`));
-      if (idx >= 0) salIdx = idx;
-    } else {
-      const targetLow = 18 + Math.floor(rnd() * 2);
-      const idx = SALARY_BANDS_META.findIndex((b) => b.label.startsWith(`年薪${targetLow}万`));
-      if (idx >= 0) salIdx = idx;
-    }
-  }
+  // 冲刺岗位提高 3/4/5 档的概率为 60%/30%/10%，与普通岗位共用 ELO 中心。
+  const salIdx = shell.isStretchRole
+    ? pickStretchSalaryIndex(state)
+    : pickSalaryIndexByRating(seed, state);
   const salMeta = SALARY_BANDS_META[salIdx];
   const salary = {
     id: salMeta.id,
@@ -620,7 +618,7 @@ export function materializeCompany(state, shell) {
   let hiddenTag = null;
   if (hasHidden) {
     /** 相对旧版「抽到传销后 50% 换掉」：去掉折损，传销条件概率由 1/18 提至 1/9（+100%） */
-    hiddenTag = { ...pickSeeded(HIDDEN_POOL, seed + 5000) };
+    hiddenTag = { ...pickSeeded(shell.isStretchRole ? HIDDEN_POOL.filter(t => t.id !== "hid_pyramid") : HIDDEN_POOL, seed + 5000) };
   }
 
   if (hiddenTag?.id === "hid_pyramid") {

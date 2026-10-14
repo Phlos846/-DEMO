@@ -1,9 +1,9 @@
-import { onStrategyAction } from './strategies.js?v=1.1.19';
+import { onStrategyAction } from './strategies.js?v=1.1.42';
 /** 每日行动基础数值；性格增量由 state.personalityActionMods 叠加 */
 
-import { applyStressDelta, talentStudyBonus, applyEnergyDelta, applyMoneyDelta } from "./talentRuntime.js?v=1.1.19";
-import { clampResumeToCap } from "./state.js?v=1.1.19";
-import { hasTalent } from "./talents.js?v=1.1.19";
+import { applyStressDelta, talentStudyBonus, applyEnergyDelta, applyMoneyDelta } from "./talentRuntime.js?v=1.1.42";
+import { clampResumeToCap } from "./state.js?v=1.1.42";
+import { hasTalent } from "./talents.js?v=1.1.42";
 
 /** 用脑过度时学习三维/简历增益乘算（供界面展示） */
 export const STUDY_OVERLOAD_GAIN_MULT = 0.55;

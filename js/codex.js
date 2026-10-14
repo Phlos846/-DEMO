@@ -1,12 +1,12 @@
-import { personalityDetailsHtml } from "./personality-ui.js?v=1.1.19";
+import { personalityDetailsHtml } from "./personality-ui.js?v=1.1.42";
 /**
  * 图鉴：localStorage 持久化已解锁的性格 / 其他词条 / 天赋 / 事件 / 结局
  */
-import { PERSONALITIES, OTHER_TRAITS } from "./traits.js?v=1.1.19";
-import { TALENTS, RARITY_CLASS, escapeHtml } from "./talents.js?v=1.1.19";
-import { EVENT_DEFS } from "./events.js?v=1.1.19";
-import { FOLLOW_UP_EVENTS } from "./eventChoices.js?v=1.1.19";
-import { ENDING_CATALOG, getEndingEmoji } from "./endings.js?v=1.1.19";
+import { PERSONALITIES, OTHER_TRAITS } from "./traits.js?v=1.1.42";
+import { TALENTS, RARITY_CLASS, escapeHtml } from "./talents.js?v=1.1.42";
+import { EVENT_DEFS } from "./events.js?v=1.1.42";
+import { FOLLOW_UP_EVENTS } from "./eventChoices.js?v=1.1.42";
+import { ENDING_CATALOG, getEndingEmoji } from "./endings.js?v=1.1.42";
 
 const STORAGE_KEY = "ar_codex_v1";
 
@@ -17,12 +17,12 @@ export const CODEX_EXTRA_EVENTS = [
     id: "evt_study_overload",
     emoji: "🧠",
     title: "用脑过度",
-    desc: "滚动五日内学习次数过多时触发：接下来三个自然日「学习」增益下降；坚持学习有机会触发「咬牙顿悟」。",
+    desc: "滚动五日内学习次数过多时触发：接下来三个自然日「学习」增益下降；坚持学习有机会触发「重新理清思路」。",
   },
   {
     id: "evt_study_breakthrough",
     emoji: "💡",
-    title: "咬牙顿悟",
+    title: "重新理清思路",
     desc: "在「用脑过度」减益下坚持学习超过三次可触发：解除过劳并获短期学习效率增益。",
   },
 ];

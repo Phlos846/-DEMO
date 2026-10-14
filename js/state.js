@@ -1,7 +1,7 @@
-import { careerOwned, careerLevel, getCareer } from './career.js?v=1.1.19';
-import { rollAllTraits, mergeStaticTraitEffects, computePersonalityActionMods } from "./traits.js?v=1.1.19";
-import { INITIAL_RATING } from "./match.js?v=1.1.19";
-import { rollPlayerTalents } from "./talents.js?v=1.1.19";
+import { careerOwned, careerLevel, getCareer, careerUnlocked } from './career.js?v=1.1.42';
+import { rollAllTraits, mergeStaticTraitEffects, computePersonalityActionMods } from "./traits.js?v=1.1.42";
+import { INITIAL_RATING } from "./match.js?v=1.1.42";
+import { rollPlayerTalents } from "./talents.js?v=1.1.42";
 import {
   patchTraitsForGenius,
   applyGeniusStatBonus,
@@ -10,7 +10,7 @@ import {
   rollExeGlitchForDay,
   computeMaxActionPointsForDay,
   applyDailyMoneyTick,
-} from "./talentRuntime.js?v=1.1.19";
+} from "./talentRuntime.js?v=1.1.42";
 
 export const RESUME_QUALITY_MAX = 120;
 
@@ -58,6 +58,7 @@ export function createInitialState(opts = {}) {
   const initialQualityVariation = Math.floor(Math.random() * 11) - 5;
 
   const state = {
+    isFirstRun: !careerUnlocked(),
     careerRunId: globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`,
     carriedRelic: getCareer().selectedRelic,
     relicUsed: false,

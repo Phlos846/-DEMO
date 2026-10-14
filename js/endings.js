@@ -1,8 +1,10 @@
-import { BURNOUT_STRESS } from "./burnout.js?v=1.1.19";
+import { salaryLowWanFromTierLabel } from "./companies.js?v=1.1.42";
+import { BURNOUT_STRESS } from "./burnout.js?v=1.1.42";
+import { SPECIAL_ENDINGS } from './specialEndingContent.js?v=1.1.42';
 /** 多结局：按优先级判定（特殊结局 > 就业质量线） */
 
-import { hasTalent } from "./talents.js?v=1.1.19";
-import { educationTagClass } from "./eduTags.js?v=1.1.19";
+import { hasTalent } from "./talents.js?v=1.1.42";
+import { educationTagClass } from "./eduTags.js?v=1.1.42";
 
 function escapeHtml(s) {
   return String(s)
@@ -17,6 +19,7 @@ function escapeHtml(s) {
  * 未列出的 id 时由 getEndingEmoji 回退。
  */
 export const ENDING_EMOJI = {
+  ...Object.fromEntries(SPECIAL_ENDINGS.map(e => [e.id, e.emoji])),
   vital_energy: "🪫",
   vital_stress: "🤯",
   lottery: "🎰",
@@ -57,10 +60,11 @@ export function getEndingEmoji(endingId) {
 
 /** 图鉴用：全结局 id + 标题 + 正文（与 computeEnding 一致） */
 export const ENDING_CATALOG = [
+  ...SPECIAL_ENDINGS,
   {
     id: "vital_energy",
     title: "体力归零",
-    body: "精力彻底见底，你连起床开电脑的力气都没有。秋招被迫按下暂停键——先睡觉、吃饭、晒太阳，人没了什么都没意义。",
+    body: "持续的消耗让你难以继续准备和面试。你暂停了这一轮秋招，先安排休息，恢复日常生活。",
   },
   {
     id: "vital_stress",
@@ -69,18 +73,18 @@ export const ENDING_CATALOG = [
   },
   {
     id: "lottery",
-    title: "彩票结局 · 财富自由体验卡",
-    body: "你买彩票（或刮刮乐）中了大奖，现金流一夜翻身，找工作突然变得『不急』。你知道这可能是暂时的，但今晚先开香槟。",
+    title: "意外之财",
+    body: "一笔意外的奖金改变了你的预算。你决定暂缓求职，重新考虑接下来的生活与工作安排。",
   },
   {
     id: "pyramid",
     title: "传销结局",
-    body: "你拿到的『Offer』越看越不对劲：囤货、拉人头、话术培训三连。你意识到自己进了假公司——本质是传销组织。快跑，顺便报警。",
+    body: "录用条件要求你先购买产品，再发展新的成员。核对信息后，你发现这是一家传销组织，决定停止联系并寻求帮助。",
   },
   {
     id: "jiejie",
-    title: "戒戒你好",
-    body: "超前消费与生活费叠加，负债滚到让你失眠。某天深夜，痛苦的你打开 dilidili，点进一个叫戒舍的直播间……弹幕里全是『坦白』与『上岸』，你突然也想打一行字。",
+    title: "账单之后",
+    body: "消费账单和生活开销逐渐超出了承受范围。你暂停求职安排，整理债务，与家人商量可行的还款计划。",
   },
   {
     id: "burnout",
@@ -89,82 +93,82 @@ export const ENDING_CATALOG = [
   },
   {
     id: "early_settle",
-    title: "提前上岸 · 见好就收",
-    body: "你手里已经握有 Offer，不再把日历熬到第 30 天。主动按下结算键：把确定感留给当下，把『万一还能更好』留给下次秋招或社招——见好就收也是一种策略。",
+    title: "提前决定",
+    body: "比较过手中的 Offer 后，你决定接受当前的机会，提前结束秋招。接下来，还有入职手续和新的生活安排需要准备。",
   },
   {
     id: "postgrad_tv",
-    title: "考研 TV",
-    body: "你埋头学习太久，就业节奏被彻底挤到次要位置。某天刷题刷到恍惚，你突然确信：考场才是下一主战场——秋招先告一段落。",
+    title: "转向考研",
+    body: "这段时间的学习让你重新考虑了自己的方向。你决定结束这一轮秋招，把接下来的时间用于准备研究生考试。",
   },
   {
     id: "civil_tv",
-    title: "考公 TV",
-    body: "学习强度拉满后，你对企业的邮件已读不回越来越无感。编制、行测、申论开始在脑内循环——你决定把主赛道切到另一条时间线。",
+    title: "转向考公",
+    body: "准备期间，你逐渐明确了自己对工作环境的期待。你决定暂停企业求职，转而准备公务员考试。",
   },
   {
     id: "grand_slam",
     title: "大满贯",
-    body: "五份以上 Offer 在手，群聊里你是被@最多的那个人。选择困难症也是一种凡尔赛。",
+    body: "五份以上的 Offer 给了你充足的选择空间。薪资之外，你开始认真比较城市、团队和未来的工作内容。",
   },
   {
     id: "underdog_snipe",
-    title: "低水平捡漏 · 中高薪资",
-    body: "纸面并不拔尖，你却拿到一档明显偏高的薪资。群友说是狗屎运，你也知道里面有岗位错配、面试超常发挥和一点天时地利——先签下，再用表现证明物超所值。",
+    title: "超出预期的机会",
+    body: "履历并不突出，但这次岗位需求与你的表现恰好契合。你拿到了超出预期的薪资，也开始为入职后的工作做准备。",
   },
   {
     id: "premium_salary",
     title: "高薪工作",
-    body: "履历和面试撑住了档位，你拿到的是让同学都羡慕的薪资区间。Offer 在手，剩下的课题是别在入职前把自己熬干。",
+    body: "扎实的准备和面试表现为你带来了一份高薪 Offer。你确认了录用条件，终于可以从密集的求职日程中歇一歇。",
   },
   {
     id: "startup",
     title: "创业结局",
-    body: "你有了一个不错的想法，有志同道合的伙伴（至少口头入股），手头还有一点积蓄或家里底气。就这样迈向创业的大路——天使轮 PPT 已新建。",
+    body: "想法、伙伴和启动资金逐渐有了着落。你决定结束秋招，尝试把项目做成一门生意，下一步是找到真正愿意付费的用户。",
   },
   {
     id: "startup_dream",
-    title: "创业季番 · 未完待续",
-    body: "你把大量行动点砸在创业脑暴上，但人脉或本金还差一口气。先工作攒钱、攒团队，车库时刻留给下一季。",
+    title: "创业筹备中",
+    body: "你花了不少时间讨论和验证创业想法，但资金或团队还没有准备好。项目暂时留在筹备阶段，你打算积累经验后再继续。",
   },
   {
     id: "inherit_family",
     title: "继承家业",
-    body: "秋招没有给你满意答案，但家里早有安排。你没能『靠自己』上岸，只能回去继承家里的公司——听起来像凡尔赛，你知道其中也有不自由的另一面。",
+    body: "秋招没有带来满意的机会，你接受了家里的邀请，回去参与经营。熟悉的环境里，也有需要重新学习的工作和责任。",
   },
   {
     id: "resume_tsunami",
     title: "简历海啸",
-    body: "你投得够多、够勤，回复却像扔进黑洞。邮箱里只有『感谢投递』在排队。来年优化话术与项目包装，再战。",
+    body: "你提交了许多简历，却没有等到合适的录用通知。整理过这一轮反馈后，你决定重新检查岗位方向和项目表达，为下一次招聘做准备。",
   },
   {
     id: "jobless_tired",
     title: "待业结局 · 春招再战",
-    body: "没能找到心仪的工作，精力也见底。你决定先躺平充电，春招再战——只要别躺到春招也过期。",
+    body: "这一轮没有找到心仪的工作，长时间的准备也让你十分疲惫。你决定先休整，再为春招安排新的计划。",
   },
   {
     id: "jobless_spring",
     title: "待业结局 · 春招再战",
-    body: "这一轮没有心仪 Offer，但你仍有余力调整策略。群友说『春招还有机会』，你选择相信并改简历。",
+    body: "这一轮没有找到心仪的工作，但你已经积累了一些面试经验。你开始整理反馈、修改简历，为春招保留机会。",
   },
   {
     id: "hungry_ok",
-    title: "饿不死",
-    body: "Offer 不算理想，薪资档位也偏保守，但好歹有了班上。先上岸，再骑驴找马——这是很多普通人的真实路线。",
+    title: "第一份工作",
+    body: "这份 Offer 的薪资不高，但能支持目前的生活。你决定从这份工作开始，积累经验，再考虑之后的发展。",
   },
   {
     id: "industry_jinx",
-    title: "行业冥灯",
-    body: "你接到的机会总带着裁员传闻、业务动荡或薪资猫腻。能拿到 Offer 说明你能打，但也说明你很敢接高难度副本。",
+    title: "波动中的选择",
+    body: "你拿到的机会伴随着业务调整或待遇方面的风险。接受之前，你需要仔细核对合同，也为变化留出余地。",
   },
   {
     id: "chill_hire",
-    title: "松弛上岸",
-    body: "你没有把自己逼到极限，却稳稳拿了几份不错的意向。压力不高、精力还在——这届秋招你属于『心态赢家』。",
+    title: "从容入职",
+    body: "你在准备与休息之间保持了节奏，也拿到了几份合适的 Offer。结束秋招时，仍有精力迎接接下来的生活。",
   },
   {
     id: "stacked",
-    title: "收割机",
+    title: "选择的余地",
     body: "多份高质量 Offer 在手，你在谈判与选择上拥有主动权。",
   },
   {
@@ -179,54 +183,43 @@ export const ENDING_CATALOG = [
   },
   {
     id: "balance",
-    title: "work-life 取舍",
+    title: "工作与生活",
     body: "你更在意可持续节奏，Offer 数量不一定最多，但方向更清晰。",
   },
   {
     id: "normal_ok",
     title: "普通结局 · 还不错",
-    body: "你拿到了一份还不错的 Offer：不算顶薪，但方向清晰、能养活自己。秋招主线告一段落，剩下是入职前的琐碎与期待。",
+    body: "你拿到了一份还不错的 Offer：不算顶薪，但方向清晰、能养活自己。这一轮秋招告一段落，剩下是入职前的琐碎与期待。",
   },
   {
     id: "outsourcing_fate",
-    title: "外包圣体",
-    body: "投递量惊人，面试却总在『外包/项目制』里打转。你怀疑自己被打上了某种隐藏标签——先接活积累经验，还是坚决等正编，你得选。",
+    title: "项目制的起点",
+    body: "你投递了许多岗位，最终的机会主要来自外包或项目制工作。你需要核对合同期限与工作安排，再决定是否从这里开始。",
   },
   {
     id: "default_win",
-    title: "上岸预备役",
-    body: "你拿到了 Offer，秋招主线告一段落；具体选择仍取决于你对城市、业务与团队的偏好。",
+    title: "新的起点",
+    body: "你拿到了 Offer，这一轮秋招告一段落；具体选择仍取决于你对城市、业务与团队的偏好。",
   },
   {
     id: "event_immigration_spam",
-    title: "咨询留痕 · 世界线分叉",
-    body: "电话被各大洲中介打爆之后，你意识到『免费咨询』四个字有多贵。你把秋招群静音，打开另一套时间线：先考试，先材料，先把自己从『应届』里捞出来再说。",
+    title: "重新考虑方向",
+    body: "连续的咨询电话让你重新考虑了海外学习与工作的可能。你暂停这一轮秋招，开始核对费用、材料和时间安排。",
   },
   {
     id: "event_credit_crisis",
     title: "培养方案 · 红线警告",
-    body: "邮件里的『未达标』三个字比任何拒信都冷。接下来几周要面对导师、重修和教务系统——秋招只能先挂起，先把毕业证这条主线打通。",
+    body: "核对培养方案后，你发现还有课程或学分需要补齐。你暂停秋招，优先处理毕业要求，再安排后续求职。",
   },
   {
     id: "event_headhunter_rush",
-    title: "口头 OC · 先杀青为敬",
-    body: "电话那头语速飞快：级别、总包、入职窗口。你挂断后才想起来——口头承诺算不算上岸？至少这一局秋招，你想先画上句号。",
+    title: "口头承诺之后",
+    body: "猎头在电话中介绍了岗位和薪资，你据此结束了这一轮求职。但正式录用材料尚未到手，接下来仍需要确认承诺能否落实。",
   },
 ];
 
 export function sortOffersBySalary(offers, state) {
-  const bonus = state?.salaryTierBonus ?? 0;
-  const rank = (s) => {
-    let r = 0;
-    if (s.includes("32万")) r = 6;
-    else if (s.includes("30w")) r = 5;
-    else if (s.includes("25k")) r = 4;
-    else if (s.includes("18k")) r = 3;
-    else if (s.includes("12k")) r = 2;
-    else if (s.includes("8k")) r = 1;
-    return r + bonus * 0.15;
-  };
-  return [...offers].sort((a, b) => rank(b.salaryTier) - rank(a.salaryTier));
+  return [...offers].sort((a, b) => salaryLowWanFromTierLabel(b.salaryTier) - salaryLowWanFromTierLabel(a.salaryTier));
 }
 
 /** 玩家已选主 Offer，否则按薪资排序自动最优（结局与展示共用） */
@@ -241,6 +234,7 @@ export function getBestOffer(state) {
 }
 
 function tagQualityZh(q) {
+  if (q === "premium") return "顶薪";
   if (q === "excellent") return "极好";
   if (q === "good") return "好";
   if (q === "bad") return "坏";
@@ -260,7 +254,7 @@ function settlementTagsPlainForShare(best) {
   return Array.isArray(best.tags) && best.tags.length ? best.tags.join(" · ") : "（无标签展示）";
 }
 
-/** 年薪区间下限（万），用于「饿不死」等 */
+/** 年薪区间下限（万），用于「第一份工作」等 */
 function offerSalaryLowWan(offer) {
   const t = offer?.salaryTier ?? "";
   const m = t.match(/年薪([\d.]+)万/);
@@ -329,7 +323,7 @@ function getStudyPivotEnding(state, n) {
   return state.studyPivotBranch;
 }
 
-/** 考研 TV / 考公 TV：不进入玩家选主 Offer 流程 */
+/** 转向考研 / 转向考公：不进入玩家选主 Offer 流程 */
 export function shouldPromptPlayerOfferChoice(preliminaryEndingId) {
   const skip = new Set(["postgrad_tv", "civil_tv"]);
   return !skip.has(preliminaryEndingId);
@@ -349,7 +343,7 @@ export function computeEnding(state, options = {}) {
     return {
       id: "vital_energy",
       title: "体力归零",
-      body: "精力彻底见底，你连起床开电脑的力气都没有。秋招被迫按下暂停键——先睡觉、吃饭、晒太阳，人没了什么都没意义。",
+      body: "持续的消耗让你难以继续准备和面试。你暂停了这一轮秋招，先安排休息，恢复日常生活。",
     };
   }
   if (state.vitalFailReason === "stress") {
@@ -372,8 +366,8 @@ export function computeEnding(state, options = {}) {
   if (state.lotteryJackpot) {
     return {
       id: "lottery",
-      title: "彩票结局 · 财富自由体验卡",
-      body: "你买彩票（或刮刮乐）中了大奖，现金流一夜翻身，找工作突然变得『不急』。你知道这可能是暂时的，但今晚先开香槟。",
+      title: "意外之财",
+      body: "一笔意外的奖金改变了你的预算。你决定暂缓求职，重新考虑接下来的生活与工作安排。",
     };
   }
 
@@ -381,15 +375,15 @@ export function computeEnding(state, options = {}) {
     return {
       id: "pyramid",
       title: "传销结局",
-      body: "你拿到的『Offer』越看越不对劲：囤货、拉人头、话术培训三连。你意识到自己进了假公司——本质是传销组织。快跑，顺便报警。",
+      body: "录用条件要求你先购买产品，再发展新的成员。核对信息后，你发现这是一家传销组织，决定停止联系并寻求帮助。",
     };
   }
 
   if ((debt >= 350 && stress >= 52) || debt >= 600) {
     return {
       id: "jiejie",
-      title: "戒戒你好",
-      body: "超前消费与生活费叠加，负债滚到让你失眠。某天深夜，痛苦的你打开 dilidili，点进一个叫戒舍的直播间……弹幕里全是『坦白』与『上岸』，你突然也想打一行字。",
+      title: "账单之后",
+      body: "消费账单和生活开销逐渐超出了承受范围。你暂停求职安排，整理债务，与家人商量可行的还款计划。",
     };
   }
 
@@ -404,8 +398,8 @@ export function computeEnding(state, options = {}) {
   if (state.voluntaryEarlyEnd && n >= 1) {
     return {
       id: "early_settle",
-      title: "提前上岸 · 见好就收",
-      body: "你手里已经握有 Offer，不再把日历熬到第 30 天。主动按下结算键：把确定感留给当下，把『万一还能更好』留给下次秋招或社招——见好就收也是一种策略。",
+      title: "提前决定",
+      body: "比较过手中的 Offer 后，你决定接受当前的机会，提前结束秋招。接下来，还有入职手续和新的生活安排需要准备。",
     };
   }
 
@@ -413,15 +407,15 @@ export function computeEnding(state, options = {}) {
   if (studyPivot === "postgrad") {
     return {
       id: "postgrad_tv",
-      title: "考研 TV",
-      body: "你埋头学习太久，就业节奏被彻底挤到次要位置。某天刷题刷到恍惚，你突然确信：考场才是下一主战场——秋招先告一段落。",
+      title: "转向考研",
+      body: "这段时间的学习让你重新考虑了自己的方向。你决定结束这一轮秋招，把接下来的时间用于准备研究生考试。",
     };
   }
   if (studyPivot === "civil") {
     return {
       id: "civil_tv",
-      title: "考公 TV",
-      body: "学习强度拉满后，你对企业的邮件已读不回越来越无感。编制、行测、申论开始在脑内循环——你决定把主赛道切到另一条时间线。",
+      title: "转向考公",
+      body: "准备期间，你逐渐明确了自己对工作环境的期待。你决定暂停企业求职，转而准备公务员考试。",
     };
   }
 
@@ -429,7 +423,7 @@ export function computeEnding(state, options = {}) {
     return {
       id: "grand_slam",
       title: "大满贯",
-      body: "五份以上 Offer 在手，群聊里你是被@最多的那个人。选择困难症也是一种凡尔赛。",
+      body: "五份以上的 Offer 给了你充足的选择空间。薪资之外，你开始认真比较城市、团队和未来的工作内容。",
     };
   }
 
@@ -438,15 +432,15 @@ export function computeEnding(state, options = {}) {
     if (isWeakOnPaper(state) && lowW >= 16) {
       return {
         id: "underdog_snipe",
-        title: "低水平捡漏 · 中高薪资",
-        body: "纸面并不拔尖，你却拿到一档明显偏高的薪资。群友说是狗屎运，你也知道里面有岗位错配、面试超常发挥和一点天时地利——先签下，再用表现证明物超所值。",
+        title: "超出预期的机会",
+        body: "履历并不突出，但这次岗位需求与你的表现恰好契合。你拿到了超出预期的薪资，也开始为入职后的工作做准备。",
       };
     }
     if (!isWeakOnPaper(state) && lowW >= 22) {
       return {
         id: "premium_salary",
         title: "高薪工作",
-        body: "履历和面试撑住了档位，你拿到的是让同学都羡慕的薪资区间。Offer 在手，剩下的课题是别在入职前把自己熬干。",
+        body: "扎实的准备和面试表现为你带来了一份高薪 Offer。你确认了录用条件，终于可以从密集的求职日程中歇一歇。",
       };
     }
   }
@@ -459,13 +453,13 @@ export function computeEnding(state, options = {}) {
       return {
         id: "startup",
         title: "创业结局",
-        body: "你有了一个不错的想法，有志同道合的伙伴（至少口头入股），手头还有一点积蓄或家里底气。就这样迈向创业的大路——天使轮 PPT 已新建。",
+        body: "想法、伙伴和启动资金逐渐有了着落。你决定结束秋招，尝试把项目做成一门生意，下一步是找到真正愿意付费的用户。",
       };
     }
     return {
       id: "startup_dream",
-      title: "创业季番 · 未完待续",
-      body: "你把大量行动点砸在创业脑暴上，但人脉或本金还差一口气。先工作攒钱、攒团队，车库时刻留给下一季。",
+      title: "创业筹备中",
+      body: "你花了不少时间讨论和验证创业想法，但资金或团队还没有准备好。项目暂时留在筹备阶段，你打算积累经验后再继续。",
     };
   }
 
@@ -473,7 +467,7 @@ export function computeEnding(state, options = {}) {
     return {
       id: "inherit_family",
       title: "继承家业",
-      body: "秋招没有给你满意答案，但家里早有安排。你没能『靠自己』上岸，只能回去继承家里的公司——听起来像凡尔赛，你知道其中也有不自由的另一面。",
+      body: "秋招没有带来满意的机会，你接受了家里的邀请，回去参与经营。熟悉的环境里，也有需要重新学习的工作和责任。",
     };
   }
 
@@ -481,7 +475,7 @@ export function computeEnding(state, options = {}) {
     return {
       id: "resume_tsunami",
       title: "简历海啸",
-      body: "你投得够多、够勤，回复却像扔进黑洞。邮箱里只有『感谢投递』在排队。来年优化话术与项目包装，再战。",
+      body: "你提交了许多简历，却没有等到合适的录用通知。整理过这一轮反馈后，你决定重新检查岗位方向和项目表达，为下一次招聘做准备。",
     };
   }
 
@@ -490,44 +484,44 @@ export function computeEnding(state, options = {}) {
       return {
         id: "jobless_tired",
         title: "待业结局 · 春招再战",
-        body: "没能找到心仪的工作，精力也见底。你决定先躺平充电，春招再战——只要别躺到春招也过期。",
+        body: "这一轮没有找到心仪的工作，长时间的准备也让你十分疲惫。你决定先休整，再为春招安排新的计划。",
       };
     }
     return {
       id: "jobless_spring",
       title: "待业结局 · 春招再战",
-      body: "这一轮没有心仪 Offer，但你仍有余力调整策略。群友说『春招还有机会』，你选择相信并改简历。",
+      body: "这一轮没有找到心仪的工作，但你已经积累了一些面试经验。你开始整理反馈、修改简历，为春招保留机会。",
     };
   }
 
   if (n === 1 && best && offerSalaryLowWan(best) < 9) {
     return {
       id: "hungry_ok",
-      title: "饿不死",
-      body: "Offer 不算理想，薪资档位也偏保守，但好歹有了班上。先上岸，再骑驴找马——这是很多普通人的真实路线。",
+      title: "第一份工作",
+      body: "这份 Offer 的薪资不高，但能支持目前的生活。你决定从这份工作开始，积累经验，再考虑之后的发展。",
     };
   }
 
   if (endingTags.risk >= 4 && n >= 1) {
     return {
       id: "industry_jinx",
-      title: "行业冥灯",
-      body: "你接到的机会总带着裁员传闻、业务动荡或薪资猫腻。能拿到 Offer 说明你能打，但也说明你很敢接高难度副本。",
+      title: "波动中的选择",
+      body: "你拿到的机会伴随着业务调整或待遇方面的风险。接受之前，你需要仔细核对合同，也为变化留出余地。",
     };
   }
 
   if (n >= 2 && n < 5 && stress < 30 && energy > 62 && best && offerSalaryLowWan(best) >= 12) {
     return {
       id: "chill_hire",
-      title: "松弛上岸",
-      body: "你没有把自己逼到极限，却稳稳拿了几份不错的意向。压力不高、精力还在——这届秋招你属于『心态赢家』。",
+      title: "从容入职",
+      body: "你在准备与休息之间保持了节奏，也拿到了几份合适的 Offer。结束秋招时，仍有精力迎接接下来的生活。",
     };
   }
 
-  if (n >= 4 && best && (best.salaryTier.includes("25k") || best.salaryTier.includes("30w"))) {
+  if (n >= 4 && best && salaryLowWanFromTierLabel(best.salaryTier) >= 25) {
     return {
       id: "stacked",
-      title: "收割机",
+      title: "选择的余地",
       body: "多份高质量 Offer 在手，你在谈判与选择上拥有主动权。",
     };
   }
@@ -551,7 +545,7 @@ export function computeEnding(state, options = {}) {
   if (endingTags.balance >= 2 || offers.some((o) => o.tags?.some((t) => t.includes("朝九晚五")))) {
     return {
       id: "balance",
-      title: "work-life 取舍",
+      title: "工作与生活",
       body: "你更在意可持续节奏，Offer 数量不一定最多，但方向更清晰。",
     };
   }
@@ -560,22 +554,22 @@ export function computeEnding(state, options = {}) {
     return {
       id: "normal_ok",
       title: "普通结局 · 还不错",
-      body: "你拿到了一份还不错的 Offer：不算顶薪，但方向清晰、能养活自己。秋招主线告一段落，剩下是入职前的琐碎与期待。",
+      body: "你拿到了一份还不错的 Offer：不算顶薪，但方向清晰、能养活自己。这一轮秋招告一段落，剩下是入职前的琐碎与期待。",
     };
   }
 
   if (applied >= 22 && n <= 1) {
     return {
       id: "outsourcing_fate",
-      title: "外包圣体",
-      body: "投递量惊人，面试却总在『外包/项目制』里打转。你怀疑自己被打上了某种隐藏标签——先接活积累经验，还是坚决等正编，你得选。",
+      title: "项目制的起点",
+      body: "你投递了许多岗位，最终的机会主要来自外包或项目制工作。你需要核对合同期限与工作安排，再决定是否从这里开始。",
     };
   }
 
   return {
     id: "default_win",
-    title: "上岸预备役",
-    body: "你拿到了 Offer，秋招主线告一段落；具体选择仍取决于你对城市、业务与团队的偏好。",
+    title: "新的起点",
+    body: "你拿到了 Offer，这一轮秋招告一段落；具体选择仍取决于你对城市、业务与团队的偏好。",
   };
 }
 

@@ -1,4 +1,4 @@
-import { careerLevel } from './career.js?v=1.1.19';
+import { careerLevel } from './career.js?v=1.1.42';
 /**
  * 玩家天赋：每局 2–3 个；稀有度配色 + 权重
  * 稀有度先验（权重合计 100）：金 4.5% / 紫 22% / 蓝 30% / 白 33.5% / 黑 10%
@@ -71,7 +71,7 @@ export const TALENTS = [
     name: "点石成金手",
     rarity: "gold",
     pickWeight: 6,
-    desc: "每日生活费以外，额外获得少量现金（蚊子腿也是肉）。",
+    desc: "每日生活费以外，额外获得少量现金。",
   },
   // —— 紫色 ——
   {
@@ -119,7 +119,7 @@ export const TALENTS = [
   // —— 蓝色 ——
   {
     id: "otaku_pro",
-    name: "冻鳗高手",
+    name: "动画游戏爱好者",
     rarity: "blue",
     pickWeight: 12,
     desc: "被游戏/动画相关岗位捞起的概率提高（标签匹配）。",
@@ -133,17 +133,17 @@ export const TALENTS = [
   },
   {
     id: "cattle",
-    name: "天生牛马",
+    name: "精力充沛",
     rarity: "blue",
     pickWeight: 11,
     desc: "精力上限与休息恢复提高；获得 Offer 概率小幅提高。",
   },
   {
     id: "ppt_weaver",
-    name: "PPT 纺织匠",
+    name: "展示专长",
     rarity: "blue",
     pickWeight: 10,
-    desc: "学习时综合素质额外提升（排版魂觉醒）。",
+    desc: "学习时综合素质额外提升。",
   },
   {
     id: "coffee_life",
@@ -179,7 +179,7 @@ export const TALENTS = [
     name: "正常人",
     rarity: "white",
     pickWeight: 14,
-    desc: "神人辈出的年代，普通反而稳：全属性微幅正向修正。",
+    desc: "各项初始属性小幅提升。",
   },
   {
     id: "parttime",
@@ -219,14 +219,14 @@ export const TALENTS = [
   // —— 黑色 ——
   {
     id: "david",
-    name: "大卫带",
+    name: "花钱大方",
     rarity: "black",
     pickWeight: 12,
-    desc: "每日生活费 +50%（消费升级，钱包降级）。",
+    desc: "每日生活费 +50%。",
   },
   {
     id: "corn",
-    name: "玉米蒸",
+    name: "容易紧张",
     rarity: "black",
     pickWeight: 11,
     desc: "压力更容易上涨，且初始压力更高。",
@@ -243,14 +243,14 @@ export const TALENTS = [
     name: "秋招.exe 未响应",
     rarity: "black",
     pickWeight: 9,
-    desc: "每个新自然日有 12% 概率当天最大行动点临时 -1（人生卡顿）。",
+    desc: "每个新自然日有 12% 概率当天最大行动点临时 -1（仅影响当天）。",
   },
   {
     id: "boss_is_watching",
     name: "已读不回模拟器",
     rarity: "black",
     pickWeight: 8,
-    desc: "零 Offer 时额外焦虑（压力）更明显；但一旦上岸，减压也更快。",
+    desc: "零 Offer 时额外焦虑（压力）更明显；获得 Offer 后，减压效果提高。",
   },
   {
     id: "frail_body",

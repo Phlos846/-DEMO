@@ -1,4 +1,4 @@
-import { canGrantStrategyChoice, grantStrategyChoice } from './strategies.js';
+import { canGrantStrategyChoice, grantStrategyChoice } from './strategies.js?v=1.1.42';
 
 export const STRATEGY_EVENTS = [
   {

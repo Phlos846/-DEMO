@@ -1,4 +1,4 @@
-import { careerOwned } from './career.js?v=1.1.19';
+import { careerOwned } from './career.js?v=1.1.42';
 /**
  * 词条系统：随机学历、专业、性格（1–3）、其他（0–2）
  * 数值可整体调参

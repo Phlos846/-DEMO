@@ -1,0 +1,131 @@
+/* Presentation only. Classic layout remains available via the existing switch.
+   Remove this stylesheet link to revert the visual layer without changing play. */
+.ui-modern {
+  --bg: #0d1620;
+  --surface: #172431;
+  --border: #334655;
+  --text: #edf3f7;
+  --muted: #a9bbc8;
+  --accent: #90d1d5;
+  --accent-dim: #64b5be;
+  --surface-raised: #1e3040;
+  color-scheme: dark;
+}
+.ui-modern body {
+  background: radial-gradient(ellipse at 8% 0%, #203747 0, transparent 48%),
+    radial-gradient(ellipse at 95% 30%, #142936 0, transparent 52%), var(--bg);
+}
+.ui-modern .top-bar {
+  background: var(--bg);
+  border-bottom-color: #52697780;
+  padding-top: 24px;
+  padding-bottom: 20px;
+}
+.ui-modern .top-bar h1 { font-size: 1.55rem; font-weight: 700; letter-spacing: .06em; }
+.ui-modern .subtitle { color: #bccbd5; }
+.ui-modern .version-tools { font-size: .72rem; }
+.ui-modern .version-tools .muted { font-size: inherit; color: #849aaa; }
+.ui-modern .layout-switch { color: var(--muted); font-size: .78rem; border-color: #3b5263; }
+.ui-modern .card {
+  background: linear-gradient(135deg, #1b2b38, var(--surface) 75%);
+  border-color: #3a506080;
+  box-shadow: 0 12px 32px #00000020, inset 0 1px 0 #ffffff04;
+  border-radius: 18px;
+}
+.ui-modern .card h2 { font-size: 1.08rem; letter-spacing: .035em; margin-bottom: 16px; }
+.ui-modern .actions { border-color: #547a8870; background: linear-gradient(135deg, #203340, #182a37); }
+.ui-modern #limited-task-panel { border-color: #657b5670; }
+.ui-modern .res {
+  background: linear-gradient(145deg, #213340, #172632);
+  border-color: #455e6f80;
+  box-shadow: inset 0 1px 0 #ffffff05;
+  padding: 16px;
+}
+.ui-modern .res .label { color: #b0c2cc; font-size: .76rem; letter-spacing: .03em; }
+.ui-modern .res .value { font-size: 1.6rem; font-weight: 650; letter-spacing: -.035em; }
+.ui-modern .res:has(#res-ap) .value { color: #a3dedf; }
+.ui-modern .res progress { background: #324957; height: 4px; }
+.ui-modern .res progress::-webkit-progress-bar { background: #324957; }
+.ui-modern .res progress::-webkit-progress-value { background: #86aebe; }
+.ui-modern .res progress::-moz-progress-bar { background: #86aebe; }
+.ui-modern .res.resource-at-risk { border-color: #c89862; background: linear-gradient(135deg, #3c3028, #23303a); }
+.ui-modern .res.resource-at-risk progress::-webkit-progress-value { background: #efbb7d; }
+.ui-modern .res.resource-at-risk progress::-moz-progress-bar { background: #efbb7d; }
+.ui-modern .resource-warning { color: #f2c995; }
+.ui-modern .action-grid .action-btn {
+  background: linear-gradient(145deg, #2a4050, #223747);
+  border-color: #496273;
+  box-shadow: inset 0 1px 0 #ffffff06;
+  border-radius: 13px;
+}
+.ui-modern .action-grid .action-btn[data-action="apply"] {
+  background: linear-gradient(145deg, #305860, #24434e);
+  border-color: #7bb5bf;
+}
+.ui-modern .action-btn strong { font-size: 1.03rem; letter-spacing: .02em; }
+.ui-modern .action-grid .action-btn small { color: #bed0db; font-size: .8rem; }
+.ui-modern .action-cost { top: 9px; right: 10px; padding: 2px 7px; border-radius: 5px; background: #0d1b2655; color: #c3d7df; font-size: .67rem; }
+.ui-modern button.primary {
+  background: linear-gradient(120deg, #a3dcdf, #85c7cf);
+  color: #10242d;
+  border: 1px solid #b0e1e480;
+  box-shadow: 0 4px 12px #00000018;
+}
+.ui-modern button.secondary { border-color: #496273; border-radius: 10px; }
+.ui-modern button:disabled { opacity: .5; box-shadow: none; }
+.ui-modern button:focus-visible, .ui-modern summary:focus-visible,
+.ui-modern input:focus-visible { outline: 2px solid #b2e5e6; outline-offset: 3px; }
+.ui-modern .panel-explanation > summary, .ui-modern .action-rules summary { color: #b1c5d0; }
+.ui-modern #strategy-owned > details { background: #13232e80; border-color: #425d6c; border-radius: 10px; }
+.ui-modern #strategy-resources { color: #a3dedf; font-weight: 600; font-variant-numeric: tabular-nums; }
+.ui-modern .money-grid button { background: #15253080; line-height: 1.6; }
+.ui-modern .money-grid button strong { font-weight: 600; }
+.ui-modern .money-grid small { color: #b5c9d5; font-size: .78rem; }
+.ui-modern .resource-feedback { background: #142831; border-color: #43636f; color: #d0e6e9; }
+.ui-modern .task-deadline { color: #dfd5a9; }
+.ui-modern .task-goal progress { accent-color: #96bba8; }
+.ui-modern .task-reward { color: #c2dfd0; }
+.ui-modern .company-view { background: #11232e85; border-color: #496574; border-radius: 14px; padding: 20px; }
+.ui-modern .company-view .company-title { font-size: 1.2rem; line-height: 1.5; }
+.ui-modern .company-salary { font-size: 1.45rem; color: #a1dadd; }
+.ui-modern .company-salary.tag-premium { color: #c0a4ff; }
+.ui-modern .company-facts { border-top-color: #3e5867; gap: 12px; }
+.ui-modern .tag { border-radius: 5px; line-height: 1.6; }
+.ui-modern .apply-progress { color: #bdccd7; }
+.ui-modern .apply-progress strong { color: var(--text); }
+.ui-modern #btn-leave-apply { border-color: #3d5262; color: #adbecb; }
+.ui-modern .log-panel { background: #14222e; box-shadow: none; }
+.ui-modern .log-panel li { border-bottom-color: #40586555; color: #a9bfcc; }
+.ui-modern .modal { background: #050c16b8; backdrop-filter: blur(4px); }
+.ui-modern .modal-inner, .ui-modern dialog.game-dialog { border: 1px solid #5a7a8980; box-shadow: 0 24px 80px #00000070; }
+.ui-modern dialog.game-dialog { background: #172632; border-radius: 18px; }
+.ui-modern dialog.game-dialog::backdrop { background: #050c16bf; backdrop-filter: blur(4px); }
+.ui-modern .event-choice { background: #203543; border-color: #496777; text-align: left; }
+.ui-modern .cheat-input { background: #10212d; border-color: #456172; min-height: 42px; }
+.ui-modern .start-preview { background: #132631; }
+.ui-modern body.vital-stress-active #app,
+.ui-modern body.vital-energy-active #app { animation: none; will-change: auto; }
+.ui-modern .vital-fx-stress, .ui-modern .vital-fx-energy { opacity: .28; animation: none; }
+.ui-modern .vital-fx-stress::after, .ui-modern .vital-fx-energy::before { animation: none; }
+@media (hover: hover) and (pointer: fine) {
+  .ui-modern button { transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease; }
+  .ui-modern .action-grid .action-btn:hover:not(:disabled) { background: #314f5e; border-color: #92b8c6; box-shadow: 0 4px 12px #00000020; }
+  .ui-modern button.secondary:hover:not(:disabled) { background-color: #284150; border-color: #87b9c3; }
+}
+@media (max-width: 760px) {
+  .ui-modern .top-bar { padding: 16px 0; }
+  .ui-modern .top-bar h1 { font-size: 1.2rem; }
+  .ui-modern .card { border-radius: 14px; box-shadow: 0 5px 18px #00000014; }
+  .ui-modern .res { padding: 12px 10px; }
+  .ui-modern .res .value { font-size: 1.25rem; }
+  .ui-modern .res .label { font-size: .72rem; }
+  .ui-modern .action-grid .action-btn { border-radius: 11px; }
+  .ui-modern .action-cost { font-size: .63rem; right: 7px; padding: 2px 5px; }
+  .ui-modern .company-view { padding: 14px; }
+  .ui-modern .company-salary { font-size: 1.3rem; }
+  .ui-modern .mobile-run-bar { background: #13232ff5; box-shadow: 0 3px 12px #00000025; }
+  .ui-modern .modal, .ui-modern dialog.game-dialog::backdrop { backdrop-filter: blur(2px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ui-modern button { transition: none; }
+}

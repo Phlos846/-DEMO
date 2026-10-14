@@ -1,4 +1,4 @@
-import { careerOwned } from './career.js?v=1.1.19';
+import { careerOwned } from './career.js?v=1.1.42';
 const KEY = 'ar_strategy_career_v1';
 export const STRATEGY_UNLOCKS = [
   { id: 'work', stat: 'days', target: 7, label: '一局到达第 7 天并结算' },

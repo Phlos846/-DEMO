@@ -1,9 +1,9 @@
-import { onStrategyRejection, onStrategyOffer } from './strategies.js?v=1.1.19';
-import { addLog } from "./state.js?v=1.1.19";
-import { buildSettlementTagParts } from "./companies.js?v=1.1.19";
-import { expectedInterviewPass, updateJobSearchRating } from "./match.js?v=1.1.19";
-import { hasTalent } from "./talents.js?v=1.1.19";
-import { applyStressDelta } from "./talentRuntime.js?v=1.1.19";
+import { onStrategyRejection, onStrategyOffer } from './strategies.js?v=1.1.42';
+import { addLog } from "./state.js?v=1.1.42";
+import { buildSettlementTagParts } from "./companies.js?v=1.1.42";
+import { expectedInterviewPass, updateJobSearchRating } from "./match.js?v=1.1.42";
+import { hasTalent } from "./talents.js?v=1.1.42";
+import { applyStressDelta } from "./talentRuntime.js?v=1.1.42";
 
 const MAX_INTERVIEWS_PER_NATURAL_DAY = 2;
 

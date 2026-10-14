@@ -1,4 +1,4 @@
-import { checkInstantFail } from './talentRuntime.js?v=1.1.19';
+import { checkInstantFail } from './talentRuntime.js?v=1.1.42';
 
 export const BURNOUT_STRESS = 85;
 export const BURNOUT_DAYS = 3;

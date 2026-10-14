@@ -1,8 +1,9 @@
-import { CAREER_ITEMS, getCareer, careerLevel, careerOwned, buyCareerItem, selectRelic } from './career.js?v=1.1.19';
-import { applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.19';
+import { CAREER_ITEMS, getCareer, careerLevel, careerOwned, careerUnlocked, buyCareerItem, selectRelic } from './career.js?v=1.1.42';
+import { applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.42';
 
 export function renderCareerShop(onChange = () => {}) {
   const root = document.getElementById('career-shop'); root.replaceChildren();
+  if (!careerUnlocked()) return;
   document.getElementById('career-points').textContent = String(getCareer().points);
   for (const group of ['能力与背景', '策略', '信物']) {
     const title = document.createElement('h3'); title.textContent = group; root.append(title);
@@ -18,7 +19,7 @@ export function renderCareerShop(onChange = () => {}) {
       button.disabled = maxed || getCareer().points < cost || (item.requires && !careerOwned(item.requires));
       button.addEventListener('click', () => {
         const error = buyCareerItem(item.id);
-        document.getElementById('career-message').textContent = error || `已解锁或升级「${item.name}」。学历解锁后可重随词条，其他强化从下局生效。`;
+        document.getElementById('career-message').textContent = error || `已解锁或升级「${item.name}」。学历解锁后可重新随机词条，其他强化从下局生效。`;
         renderCareerShop(onChange); onChange();
       });
       card.append(name, desc, button);

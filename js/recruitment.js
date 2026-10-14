@@ -1,4 +1,4 @@
-import { hashSeed } from './companies.js?v=1.1.19';
+import { hashSeed, salaryLowWanFromTierLabel } from './companies.js?v=1.1.42';
 
 const REQUIREMENTS = [
   {label:'基础要求', factor:1.08},
@@ -15,7 +15,15 @@ function tier(seed) {
   return u < .25 ? 0 : u < .75 ? 1 : 2;
 }
 
-// Stable for each company; salary, benefits and reputation do not set difficulty.
+// 公司要求独立生成；稀有高薪档另有选拔门槛。
+export function premiumSalaryModifier(company) {
+  const low = salaryLowWanFromTierLabel(company.tags?.salary?.label);
+  if (low >= 45) return .6;
+  if (low >= 40) return .7;
+  if (low >= 36) return .8;
+  if (low >= 32) return .9;
+  return 1;
+}
 export function getRecruitmentProfile(company) {
   return company.recruitment ?? {
     requirement: company.baseSeed == null ? 1 : tier(company.baseSeed + 19001),
@@ -25,12 +33,12 @@ export function getRecruitmentProfile(company) {
 
 export function recruitmentModifier(company) {
   const p = getRecruitmentProfile(company);
-  return (REQUIREMENTS[p.requirement] ?? REQUIREMENTS[1]).factor * (COMPETITION[p.competition] ?? COMPETITION[1]).factor;
+  return (REQUIREMENTS[p.requirement] ?? REQUIREMENTS[1]).factor * (COMPETITION[p.competition] ?? COMPETITION[1]).factor * premiumSalaryModifier(company);
 }
 
 export function recruitmentLabel(company) {
   const p = getRecruitmentProfile(company);
-  return `${(REQUIREMENTS[p.requirement] ?? REQUIREMENTS[1]).label} · ${(COMPETITION[p.competition] ?? COMPETITION[1]).label}`;
+  return `${(REQUIREMENTS[p.requirement] ?? REQUIREMENTS[1]).label} · ${(COMPETITION[p.competition] ?? COMPETITION[1]).label}${premiumSalaryModifier(company) < 1 ? " · 高薪选拔" : ""}`;
 }
 
 // Absolute thresholds, including characters with enhanced resource caps.

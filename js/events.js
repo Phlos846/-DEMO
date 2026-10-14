@@ -1,6 +1,8 @@
-import { finishHighStressDay } from "./burnout.js?v=1.1.19";
-import { CONDITIONAL_EVENTS, takeConditionalEvent } from "./conditionalEvents.js?v=1.1.19";
-import { STRATEGY_EVENTS } from './strategy-events.js';
+import { UNCERTAIN_EVENTS } from './uncertainEvents.js?v=1.1.42';
+import { finishHighStressDay } from "./burnout.js?v=1.1.42";
+import { CONDITIONAL_EVENTS, takeConditionalEvent } from "./conditionalEvents.js?v=1.1.42";
+import { STRATEGY_EVENTS } from './strategy-events.js?v=1.1.42';
+import { SPECIAL_ROUTE_EVENTS } from './specialEndingEvents.js?v=1.1.42';
 /**
  * 随机事件：加权抽取（含梗文案与 emoji）；
  * 5 日滑动窗口内事件总数 ∈ [1,3]，窗口总次数 60%/30%/10%。
@@ -20,21 +22,23 @@ import {
   applyNoOfferAnxiety,
   applyPassiveDayRecovery,
   tryNepotismOffer,
-} from "./talentRuntime.js?v=1.1.19";
-import { hasTalent } from "./talents.js?v=1.1.19";
-import { EXPANSION_EVENTS } from './eventExpansion.js?v=1.1.19';
-import { sampleEventPool } from './eventSampling.js?v=1.1.19';
-import { addLog, clampResumeToCap } from "./state.js?v=1.1.19";
-import { STUDY_RECOVERY_BUFF_MULT } from "./actions.js?v=1.1.19";
-import { getEventInteraction, eventChoiceUnavailable, takeDueFollowups } from "./eventChoices.js?v=1.1.19";
-import { eventAvailableThisRun, eventRepeatMultiplier, recordEventAppearance } from "./eventRecurrence.js?v=1.1.19";
+} from "./talentRuntime.js?v=1.1.42";
+import { hasTalent } from "./talents.js?v=1.1.42";
+import { inFirstRunIntro } from './run-phase.js?v=1.1.42';
+import { syncTasks, settleTaskDay } from './tasks.js?v=1.1.42';
+import { EXPANSION_EVENTS } from './eventExpansion.js?v=1.1.42';
+import { sampleEventPool } from './eventSampling.js?v=1.1.42';
+import { addLog, clampResumeToCap } from "./state.js?v=1.1.42";
+import { STUDY_RECOVERY_BUFF_MULT } from "./actions.js?v=1.1.42";
+import { getEventInteraction, eventChoiceUnavailable, takeDueFollowups } from "./eventChoices.js?v=1.1.42";
+import { eventAvailableThisRun, eventRepeatMultiplier, recordEventAppearance } from "./eventRecurrence.js?v=1.1.42";
 import {
   addTransientEffect,
   transientUntilDay,
   purgeAllDebuffsForPurify,
   pruneExpiredTransientEffects,
-} from "./transientEffects.js?v=1.1.19";
-import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js?v=1.1.19";
+} from "./transientEffects.js?v=1.1.42";
+import { processInterviewsAtDayStart, processPendingResumeFeedback } from "./interviews.js?v=1.1.42";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -84,6 +88,7 @@ export function countEventsInPrior4Days(state, day) {
  * 今日应发生事件数量 k：满足 1 <= n+k <= 3，并按 60/30/10 抽窗口总次数 T
  */
 export function sampleEventCountForToday(state) {
+  if (inFirstRunIntro(state)) return 0;
   const d = state.day;
   const n = countEventsInPrior4Days(state, d);
   const minK = Math.max(0, 1 - n);
@@ -158,6 +163,9 @@ function setIndustryBuff(state, industry, days = 7, mult = 1.2) {
 export function simulateForwardNaturalDays(state, steps) {
   for (let i = 0; i < steps; i++) {
     if (finishHighStressDay(state)) break;
+    settleTaskDay(state);
+    checkInstantFail(state);
+    if (state.gameOver) break;
     const leavingDay = state.day;
     state.day += 1;
     pruneExpiredTransientEffects(state);
@@ -181,6 +189,9 @@ export function simulateForwardNaturalDays(state, steps) {
     applyPassiveDayRecovery(state);
     state.maxActionPointsPerDay = computeMaxActionPointsForDay(state);
     state.actionPoints = state.maxActionPointsPerDay;
+    syncTasks(state);
+    checkInstantFail(state);
+    if (state.gameOver) break;
     const nep = tryNepotismOffer(state);
     if (nep) addLog(state, nep);
     const isFinalDay = state.day === state.maxDays;
@@ -192,10 +203,11 @@ export function simulateForwardNaturalDays(state, steps) {
 
 /** 随机事件表：玩梗文案 + emoji；部分需压力/精力/金钱等门槛才进入随机池 */
 export const EVENT_DEFS = [
+  ...SPECIAL_ROUTE_EVENTS,
   ...STRATEGY_EVENTS,
   ...CONDITIONAL_EVENTS,
   {
-    id: 'evt_offer_withdrawn', emoji: '📩', title: '说好的 Offer 呢？',
+    id: 'evt_offer_withdrawn', emoji: '📩', title: '录用通知被撤回',
     desc: 'HR 发来邮件：“因业务调整，原定岗位编制取消，我们很遗憾地撤回录用通知。”随机失去一份已获得的 Offer，压力 +12。这是已经发生的通知，每局最多一次。',
     requires: { offersMin: 1, dayMin: 8 }, maxPerRun: 1, weight: 0.8,
     apply(s) {
@@ -207,13 +219,14 @@ export const EVENT_DEFS = [
     },
   },
   ...EXPANSION_EVENTS,
+  ...UNCERTAIN_EVENTS,
   {
     id: "evt_network",
     maxPerRun: 1,
     emoji: "🤝",
     weight: 1,
     title: "学长内推",
-    desc: "一位学长愿意帮你内推一家中小厂，压力略降，综合素质微升；学长余温让你几天内更不容易被小事点炸（压力获得量↓，持续 3 天）。",
+    desc: "一位学长愿意帮你内推一家中小厂，压力略降，综合素质微升；这份支持让你接下来几天面对小事时更平静（压力获得量↓，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, -5, "event");
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 3);
@@ -301,7 +314,7 @@ export const EVENT_DEFS = [
     emoji: "✨",
     weight: 1,
     title: "十连双金",
-    desc: "你手滑点了十连，屏幕金光乱闪——双金！欧气当场降压；欧气余韵让你几天内更容易被小事治愈（降压效果↑，持续 3 天）。",
+    desc: "一次抽取出现了两份稀有奖励。意外的好运让你放松下来；这份好心情让你几天内更容易被小事治愈（降压效果↑，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, -9, "event");
       fxBuff(s, "欧气余韵：降压更有效", 3, { stressReliefMult: 1.12 });
@@ -324,7 +337,7 @@ export const EVENT_DEFS = [
     id: "evt_pay_bad_luck",
     emoji: "💸",
     weight: 1,
-    title: "破钱消灾",
+    title: "临时支出",
     desc: "外卖撒了、耳机丢了、屏幕裂了——倒霉事三连，你只能花钱平事。金钱 -55。",
     apply: (s) => {
       applyMoneyDelta(s, -55);
@@ -334,8 +347,8 @@ export const EVENT_DEFS = [
     id: "evt_melon",
     emoji: "🍉",
     weight: 1,
-    title: "有瓜吃",
-    desc: "隔壁寝室有人表白翻车又复合，群里截图满天飞。你吃瓜吃到忘记焦虑。压力 -20。",
+    title: "寝室里的近况",
+    desc: "晚饭时，同学讲起了寝室最近的趣事。聊着聊着，你暂时放下了求职的烦恼。压力 -20。",
     apply: (s) => {
       applyStressDelta(s, -20, "event");
     },
@@ -345,7 +358,7 @@ export const EVENT_DEFS = [
     emoji: "📰",
     weight: 1.1,
     title: "新闻发布会",
-    desc: "热搜上说某大厂『战略性优化』，评论区人均 CEO。你看完只觉得：这瓜不熟，与你无关。无事发生。",
+    desc: "你看完了一场公司的新闻发布会，没有发现与目前求职方向相关的信息。无额外影响。",
     apply: () => {},
   },
   {
@@ -365,8 +378,8 @@ export const EVENT_DEFS = [
     id: "evt_press_meta",
     emoji: "📱",
     weight: 1,
-    title: "新闻发布会（赛博围观）",
-    desc: "监管约谈、平台整改、股价跳水三连上热搜。群聊里人人像战略顾问，你默默把『了解』刷了一屏，心态意外地稳。压力 -5。",
+    title: "新闻发布会后的讨论",
+    desc: "行业消息引起了群里的讨论。听完不同的看法，你发现大家也没有确定答案，不必急着下结论。压力 -5。",
     apply: (s) => {
       applyStressDelta(s, -5, "event");
     },
@@ -391,7 +404,7 @@ export const EVENT_DEFS = [
     emoji: "🎣",
     weight: 1,
     title: "诈骗",
-    desc: "你在二手群看到『内部测评码』，转账后被拉黑。压力 +10，精力 -30；被骗后你怀疑人生，把简历里『诚信』那条删了又加、加了又删——综合素质 -6。",
+    desc: "你购买了所谓的内部测评资料，转账后却被对方拉黑。处理这件事打乱了准备计划。压力 +10，精力 -30，综合素质 -6。",
     apply: (s) => {
       applyStressDelta(s, 10, "event");
       applyEnergyDelta(s, -30);
@@ -403,7 +416,7 @@ export const EVENT_DEFS = [
     emoji: "🏃",
     weight: 1,
     title: "体测",
-    desc: "一千米、引体向上、肺活量一条龙。你跑完只想躺平。精力 -48（已按上限裁剪，避免单事件清空条）。",
+    desc: "体测接连进行了跑步、引体向上和肺活量测试。结束后，你只想坐下来歇一会儿。精力 -48。",
     apply: (s) => {
       applyEnergyDelta(s, -48);
       applyStressDelta(s, 4, "event");
@@ -424,8 +437,8 @@ export const EVENT_DEFS = [
     id: "evt_skeleton",
     emoji: "💀",
     weight: 1,
-    title: "群友发骷髅",
-    desc: "群里有人连刷骷髅表情包，配文『学信网可查的绝望』。你被赛博丧气感染，精力 -8。",
+    title: "群里的低落情绪",
+    desc: "群里接连出现了求职不顺的消息。你翻看了很久，自己的准备也停了下来。精力 -8。",
     apply: (s) => {
       applyEnergyDelta(s, -8);
     },
@@ -434,7 +447,7 @@ export const EVENT_DEFS = [
     id: "evt_lucky_money",
     emoji: "🧧",
     weight: 1,
-    title: "赛博财神",
+    title: "两笔小惊喜",
     desc: "你抢到了群里的拼手气红包，还中了支付立减。金钱 +35。",
     apply: (s) => {
       applyMoneyDelta(s, 35);
@@ -446,8 +459,8 @@ export const EVENT_DEFS = [
     emoji: "🎰",
     weight: 0.035,
     immediateSettle: true,
-    title: "刮刮乐欧皇",
-    desc: "便利店排队顺手刮了一张，店员表情凝固——你中了头奖档。先财务自由几天，秋招？再说吧。（触发后立即进入结局）",
+    title: "刮刮乐中奖",
+    desc: "你在便利店买了一张刮刮乐，核对后发现中了大奖。这笔钱让你决定重新安排求职计划。（触发后立即进入结局）",
     apply: (s) => {
       s.lotteryJackpot = true;
       applyMoneyDelta(s, 88888);
@@ -461,14 +474,14 @@ export const EVENT_DEFS = [
     emoji: "🌍",
     weight: 0.04,
     immediateSettle: true,
-    title: "移民中介连环 call",
-    desc: "你在『留学移民测评』页手滑留了电话，各大洲中介轮番轰炸。心态爆炸的你把招聘 APP 全静音——先研究语言考试，秋招这条线暂且存档。（触发后立即进入结局）",
+    title: "接连不断的咨询电话",
+    desc: "留过联系方式后，你接到了多家中介的电话。考虑过另一条路线，你决定暂停秋招，先研究海外学习与工作的要求。（触发后立即进入结局）",
     apply: (s) => {
       applyStressDelta(s, 6, "event");
       s.eventImmediateEnding = {
         id: "event_immigration_spam",
-        title: "咨询留痕 · 世界线分叉",
-        body: "电话被各大洲中介打爆之后，你意识到『免费咨询』四个字有多贵。你把秋招群静音，打开另一套时间线：先考试，先材料，先把自己从『应届』里捞出来再说。",
+        title: "重新考虑方向",
+        body: "连续的咨询电话让你重新考虑了海外学习与工作的可能。你暂停这一轮秋招，开始核对费用、材料和时间安排。",
       };
       addLog(s, `第 ${s.day} 天：移民咨询连环 call——本局立即结算。`);
     },
@@ -480,13 +493,13 @@ export const EVENT_DEFS = [
     weight: 0.041,
     immediateSettle: true,
     title: "学分预警邮件",
-    desc: "教务处系统：『当前培养方案未达标，存在延毕风险』。你盯着『延毕』两个字，面试题突然不香了。（触发后立即进入结局）",
+    desc: "教务处系统：『当前培养方案未达标，存在延毕风险』。你需要先确认毕业要求，面试准备暂时搁下了。（触发后立即进入结局）",
     apply: (s) => {
       applyStressDelta(s, 14, "event");
       s.eventImmediateEnding = {
         id: "event_credit_crisis",
         title: "培养方案 · 红线警告",
-        body: "邮件里的『未达标』三个字比任何拒信都冷。接下来几周要面对导师、重修和教务系统——秋招只能先挂起，先把毕业证这条主线打通。",
+        body: "核对培养方案后，你发现还有课程或学分需要补齐。你暂停秋招，优先处理毕业要求，再安排后续求职。",
       };
       addLog(s, `第 ${s.day} 天：收到学分预警——本局立即结算。`);
     },
@@ -503,8 +516,8 @@ export const EVENT_DEFS = [
       applyStressDelta(s, -4, "event");
       s.eventImmediateEnding = {
         id: "event_headhunter_rush",
-        title: "口头 OC · 先杀青为敬",
-        body: "电话那头语速飞快：级别、总包、入职窗口。你挂断后才想起来——口头承诺算不算上岸？至少这一局秋招，你想先画上句号。",
+        title: "口头承诺之后",
+        body: "猎头在电话中介绍了岗位和薪资，你据此结束了这一轮求职。但正式录用材料尚未到手，接下来仍需要确认承诺能否落实。",
       };
       addLog(s, `第 ${s.day} 天：猎头急电口头意向——本局立即结算。`);
     },
@@ -513,8 +526,8 @@ export const EVENT_DEFS = [
     id: "evt_bnpl",
     emoji: "💳",
     weight: 1,
-    title: "免息分期≈不要钱",
-    desc: "12 期免息让你产生幻觉：先把想买的都下单。账单总会来的。无形负债 +480。",
+    title: "分期账单",
+    desc: "几笔免息分期让眼前的支出显得不多，合计账单却超出了预期。负债 +480。",
     apply: (s) => {
       s.debt = (s.debt ?? 0) + 480;
       applyStressDelta(s, 5, "event");
@@ -536,8 +549,8 @@ export const EVENT_DEFS = [
     id: "evt_doxx_fear",
     emoji: "📦",
     weight: 1,
-    title: "开盒警告",
-    desc: "论坛有人晒『盒武器教程』，你下意识检查了自己隐私设置。焦虑上头。压力 +9。",
+    title: "隐私泄露的担忧",
+    desc: "看到个人信息泄露的讨论后，你检查了公开简历和账号的隐私设置。压力 +9。",
     apply: (s) => {
       applyStressDelta(s, 9, "event");
     },
@@ -546,8 +559,8 @@ export const EVENT_DEFS = [
     id: "evt_launch_again",
     emoji: "🎮",
     weight: 1.45,
-    title: "原神启动…失败",
-    desc: "你本想『十分钟放松』，结果更新包 60G。等待条走完，罪恶感先拉满。压力 +4，精力 -6。",
+    title: "游戏更新中",
+    desc: "你打算玩十分钟游戏，打开后才发现有一个很大的更新包。等下载完成，原定的休息时间已经过去了。压力 +4，精力 -6。",
     apply: (s) => {
       applyStressDelta(s, 4, "event");
       applyEnergyDelta(s, -6);
@@ -567,8 +580,8 @@ export const EVENT_DEFS = [
     id: "evt_interview_meme",
     emoji: "🌳",
     weight: 1,
-    title: "面试题：二叉树翻转心情",
-    desc: "面试官微笑着问你『如何缓解压力』，你脑子里只有 LeetCode。胡诌一通居然过了隐藏考察？面试隐藏分 +3，压力 +3。",
+    title: "题目之外的问题",
+    desc: "练习面试时，同学忽然问你怎样应对压力。你发现，除了准备技术题，也需要想清楚自己的工作方式。面试能力 +3，压力 +3。",
     apply: (s) => {
       s.hiddenInterview = clamp(s.hiddenInterview + 3, 0, 100);
       applyStressDelta(s, 3, "event");
@@ -578,8 +591,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_shushu",
     emoji: "🐭",
     weight: 1,
-    title: "鼠鼠我呀，也想拿 Offer",
-    desc: "论坛热帖：『鼠鼠秋招只配当分母吗』。你手滑点了个赞，赛博共鸣让压力短暂 -6，但隐藏简历分 +1（鼠鼠也要卷）。",
+    title: "有人说出了同样的烦恼",
+    desc: "一篇求职记录写出了你最近的烦恼，也分享了整理经历的方法。你留下回复，顺手记下了一条建议。压力 -6，简历能力 +1。",
     apply: (s) => {
       applyStressDelta(s, -6, "event");
       s.hiddenResume = clamp(s.hiddenResume + 1, 0, 100);
@@ -589,8 +602,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_monkey",
     emoji: "🐒",
     weight: 1,
-    title: "吗喽的命也是命",
-    desc: "短视频里吗喽摘香蕉配字幕『周一例会』。你笑完突然想哭：精力 -5，压力 +3。",
+    title: "休息时的一段视频",
+    desc: "一段模仿例会的短视频让你笑了起来，随后又想起了还没完成的准备。精力 -5，压力 +3。",
     apply: (s) => {
       applyEnergyDelta(s, -5);
       applyStressDelta(s, 3, "event");
@@ -600,8 +613,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_cpu",
     emoji: "🧠",
     weight: 1,
-    title: "被 HR「CPU」了",
-    desc: "群友科普：『这不是 PUA，是职场预期管理』。你似懂非懂，只觉得脑子嗡嗡的。压力 +8。",
+    title: "含糊的岗位承诺",
+    desc: "招聘方反复强调发展空间，却迟迟不愿说明工作内容和待遇。沟通结束后，你仍有不少疑问。压力 +8。",
     apply: (s) => {
       applyStressDelta(s, 8, "event");
     },
@@ -610,8 +623,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_pie",
     emoji: "🥧",
     weight: 1,
-    title: "画饼学导论",
-    desc: "直播课标题：《从期权到福报——饼的烘焙与消化》。听完你简历里多写了一句『对齐颗粒度』。综合素质 +2，压力 +4。",
+    title: "一堂职业分享课",
+    desc: "分享课谈了许多职业规划，也留下了一些没有讲清的实际问题。你记下几条思路，准备之后再核实。综合素质 +2，压力 +4。",
     apply: (s) => {
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 2);
       applyStressDelta(s, 4, "event");
@@ -621,7 +634,7 @@ export const EVENT_DEFS = [
     id: "evt_meme_996",
     emoji: "🏥",
     weight: 1,
-    title: "996.ICU 联名款体检",
+    title: "体检套餐里的提醒",
     desc: "群转：某厂体检套餐送『颈椎康复咨询』。你默默把『能接受一定强度加班』删了又写回去。压力 +5，精力 -6。",
     apply: (s) => {
       applyStressDelta(s, 5, "event");
@@ -632,8 +645,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_dian",
     emoji: "🗿",
     weight: 1,
-    title: "典中典之「弹性工作」",
-    desc: "脉脉热评：『弹性＝弹走你的下班』。太典了，你复制进备忘录当段子素材。压力 -4（笑一下算了）。",
+    title: "弹性工作，弹向哪边",
+    desc: "招聘页写着弹性工作，评论里却有人问：下班时间也可以自己选吗？你笑了一下，把这个问题记进面试清单。压力 -4。",
     apply: (s) => {
       applyStressDelta(s, -4, "event");
     },
@@ -642,8 +655,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_ji",
     emoji: "📧",
     weight: 1,
-    title: "寄！笔试链接已过期",
-    desc: "邮件写『请在 24h 内完成』，你看到时已是第 25h。群友：『稳了，寄了』。压力 +11。",
+    title: "错过笔试期限",
+    desc: "邮件要求 24 小时内完成笔试，你发现它时，链接已经过期。压力 +11。",
     apply: (s) => {
       applyStressDelta(s, 11, "event");
     },
@@ -652,8 +665,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_run",
     emoji: "🛫",
     weight: 1,
-    title: "润学讲座进校园",
-    desc: "海报写『出海与远程办公』，到场发现是留学中介。你白嫖了一瓶水，心态略平和。压力 -3，金钱 -20。",
+    title: "讲座背后的推广",
+    desc: "海报写『出海与远程办公』，到场发现是留学中介。你领了一瓶水，听完介绍后提前离开。压力 -3，金钱 -20。",
     apply: (s) => {
       applyStressDelta(s, -3, "event");
       applyMoneyDelta(s, -20);
@@ -663,8 +676,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_yyds",
     emoji: "👑",
     weight: 1,
-    title: "学长 YYDS 内推码",
-    desc: "群里甩码：『懂的都懂』。你抢到了但不知道往哪填，先截图发朋友圈。综合素质 +3，压力 -2。",
+    title: "学长发来的内推码",
+    desc: "学长发来内推码，还附上了岗位要求和申请步骤。你核对经历，整理好准备提交的材料。综合素质 +3，压力 -2。",
     apply: (s) => {
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality + 3);
       applyStressDelta(s, -2, "event");
@@ -674,8 +687,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_shuanq",
     emoji: "🙏",
     weight: 1,
-    title: "栓 Q 面试官",
-    desc: "二面结束你顺口『栓 Q 老师』，全场沉默三秒。面试隐藏分 -2（社死），压力 +6。",
+    title: "结束时说错了话",
+    desc: "面试结束时，你一紧张，把道谢的话说成了别的句子。走出房间后，还在回想那几秒钟。面试能力 -2，压力 +6。",
     apply: (s) => {
       s.hiddenInterview = clamp(s.hiddenInterview - 2, 0, 100);
       applyStressDelta(s, 6, "event");
@@ -685,7 +698,7 @@ export const EVENT_DEFS = [
     id: "evt_meme_lead",
     emoji: "📱",
     weight: 1,
-    title: "遥遥领先（音量键）",
+    title: "室友外放的发布会",
     desc: "室友外放发布会，你被迫听完『遥遥领先』十二遍。莫名焦虑。压力 +5，精力 -4。",
     apply: (s) => {
       applyStressDelta(s, 5, "event");
@@ -696,7 +709,7 @@ export const EVENT_DEFS = [
     id: "evt_meme_show",
     emoji: "🦚",
     weight: 1,
-    title: "显眼包室友拿ssp了",
+    title: "室友拿到了高薪 Offer",
     desc: "朋友圈九宫格：『感谢过去努力的自己』。你点赞手速比脑子快。压力 +7。",
     apply: (s) => {
       applyStressDelta(s, 7, "event");
@@ -706,7 +719,7 @@ export const EVENT_DEFS = [
     id: "evt_meme_ie",
     emoji: "🫥",
     weight: 1,
-    title: "i 人地狱：无领导小组",
+    title: "第一次无领导小组练习",
     desc: "群面规则：『请积极发言』。你全程『嗯嗯』，结束脑内复盘八百遍。面试隐藏分 +1，压力 +9。",
     apply: (s) => {
       s.hiddenInterview = clamp(s.hiddenInterview + 1, 0, 100);
@@ -717,7 +730,7 @@ export const EVENT_DEFS = [
     id: "evt_meme_zhendu",
     emoji: "🤡",
     weight: 1,
-    title: "尊嘟假嘟 OC 面",
+    title: "一道意外的面试题",
     desc: "面试官：『你觉得我司文化像哪种动物』。你：『啊？』。压力 +5，精力 -3。",
     apply: (s) => {
       applyStressDelta(s, 5, "event");
@@ -728,8 +741,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_taiku",
     emoji: "🕶️",
     weight: 1,
-    title: "泰裤辣通宵改简历",
-    desc: "凌晨三点你觉得自己『泰裤辣』，天亮一看全是错别字。综合素质 -7（得重改），精力 -12，压力 +4。",
+    title: "凌晨改好的简历",
+    desc: "凌晨三点，你终于改完简历。早上重新打开，却发现疲惫时漏掉了不少错字。综合素质 -7，精力 -12，压力 +4。",
     apply: (s) => {
       s.resumeQuality = clampResumeToCap(s, s.resumeQuality - 7);
       applyEnergyDelta(s, -12);
@@ -741,7 +754,7 @@ export const EVENT_DEFS = [
     emoji: "🚶",
     weight: 1,
     title: "Citywalk 改简历",
-    desc: "小红书教程：边走边投更松弛。你走断腿只投出去两家。精力 -8，压力 -3。",
+    desc: "你试着一边散步一边整理投递。走了很远，手机上只提交了两份申请，倒是看到了平时没留意的街景。精力 -8，压力 -3。",
     apply: (s) => {
       applyEnergyDelta(s, -8);
       applyStressDelta(s, -3, "event");
@@ -751,8 +764,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_404",
     emoji: "🔍",
     weight: 1,
-    title: "404 Not Found 人生",
-    desc: "官网招聘页 404，群友说『岗位已下架，心也已下架』。你 F5 到手指抽筋。压力 +6。",
+    title: "招聘页面无法访问",
+    desc: "招聘页面一直提示无法访问，你尝试刷新，也没有找到岗位是否下架的说明。压力 +6。",
     apply: (s) => {
       applyStressDelta(s, 6, "event");
     },
@@ -761,8 +774,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_dance",
     emoji: "💃",
     weight: 1,
-    title: "科目三面试（误）",
-    desc: "群误传『某厂面试要才艺』。你练了半小时摇花手最后发现是谣言。精力 -10，压力 -4（至少运动了）。",
+    title: "误传的面试要求",
+    desc: "群里有人说面试要展示才艺，你练了半小时才发现消息不实。不过，活动一下身体也算休息。精力 -10，压力 -4。",
     apply: (s) => {
       applyEnergyDelta(s, -10);
       applyStressDelta(s, -4, "event");
@@ -772,8 +785,8 @@ export const EVENT_DEFS = [
     id: "evt_meme_barbie",
     emoji: "🍖",
     weight: 1,
-    title: "芭比 Q 了，群面撞同门",
-    desc: "群面一看全是校友，题目还是『如何优雅地卷』。压力 +8，面试隐藏分 +2（熟人 buff）。",
+    title: "群面遇到校友",
+    desc: "群面里有几位熟悉的校友。你有些紧张，也从他们的表达中学到了新的思路。压力 +8，面试能力 +2。",
     apply: (s) => {
       s.hiddenInterview = clamp(s.hiddenInterview + 2, 0, 100);
       applyStressDelta(s, 8, "event");
@@ -784,8 +797,8 @@ export const EVENT_DEFS = [
     emoji: "🧱",
     weight: 1.85,
     requires: { stressMin: 70 },
-    title: "破防了家人们（压力版）",
-    desc: "凌晨刷到『秋招结束了吗』热搜，评论区全是上岸截图。你当场破防。压力再 +6，精力 -8。",
+    title: "深夜的求职动态",
+    desc: "凌晨，你仍在翻看别人的录用消息，越看越担心自己的进度。压力 +6，精力 -8。",
     apply: (s) => {
       applyStressDelta(s, 6, "event");
       applyEnergyDelta(s, -8);
@@ -796,8 +809,8 @@ export const EVENT_DEFS = [
     emoji: "😬",
     weight: 1.85,
     requires: { stressMin: 70 },
-    title: "绷不住了，脉脉红点名场面",
-    desc: "脉脉推送：『你司本周热帖』。点开第一条就是加班吐槽。绷。压力 +5，隐藏简历 +1（你记笔记了）。",
+    title: "招聘平台的加班讨论",
+    desc: "平台推来一篇加班讨论，你担心起工作节奏，也记下了几个面试时要问的问题。压力 +5，简历能力 +1。",
     apply: (s) => {
       applyStressDelta(s, 5, "event");
       s.hiddenResume = clamp(s.hiddenResume + 1, 0, 100);
@@ -808,8 +821,8 @@ export const EVENT_DEFS = [
     emoji: "💦",
     weight: 1.75,
     requires: { stressMin: 70 },
-    title: "汗流浃背了吧老弟",
-    desc: "视频梗刷多了，你一看到『请自我介绍』就自动脑补配音。紧张到出汗。压力 +4，精力 -5。",
+    title: "练习前的紧张",
+    desc: "准备录制自我介绍时，你反复想象面试官会怎样评价，迟迟没有按下开始键。压力 +4，精力 -5。",
     apply: (s) => {
       applyStressDelta(s, 4, "event");
       applyEnergyDelta(s, -5);
@@ -820,8 +833,8 @@ export const EVENT_DEFS = [
     emoji: "⛵",
     weight: 1.4,
     requires: { stressMin: 75 },
-    title: "轻舟已过万重山？",
-    desc: "鸡汤帖：『轻舟已过万重山』。你看了看拒信文件夹：山还在，舟漏水。压力 +3，但心态强行 -5 压（算自我和解）。",
+    title: "一条鼓励的消息",
+    desc: "朋友发来一句鼓励。你看着尚未回复的申请，仍有些担心，但有人记得你的近况，也让心情缓和了一点。压力先 +3，再 -5。",
     apply: (s) => {
       applyStressDelta(s, -2, "event");
     },
@@ -831,8 +844,8 @@ export const EVENT_DEFS = [
     emoji: "🦴",
     weight: 1.5,
     requires: { energyMax: 40 },
-    title: "脆皮大学生实锤",
-    desc: "热搜：『脆皮大学生』。你对号入座：蹲久了站起来眼前一黑。当场精力与压力小波动；脆皮认证让你几天内一动就累（精力消耗↑，持续 3 天）。",
+    title: "起身时的一阵眩晕",
+    desc: "久坐后突然起身，你感到一阵眩晕，决定放慢安排。当场精力与压力小幅变化；接下来更容易疲惫（精力消耗↑，持续 3 天）。",
     apply: (s) => {
       applyEnergyDelta(s, -4);
       applyStressDelta(s, 1, "event");
@@ -856,8 +869,8 @@ export const EVENT_DEFS = [
     emoji: "🫙",
     weight: 1.35,
     requires: { moneyMax: 400 },
-    title: "钱包比脸还干净",
-    desc: "拼单群喊『谁有红包』，你默默潜水。贫穷让你清醒：当场压力上升；贫穷清醒让你两天内更容易焦虑（压力获得↑，持续 2 天）。",
+    title: "余额不多了",
+    desc: "查看余额后，你发现可支配的钱已经不多。接下来的开销需要重新安排，当场压力上升；两天内更容易担忧（压力获得↑，持续 2 天）。",
     apply: (s) => {
       applyStressDelta(s, 3, "event");
       fxDebuff(s, "贫穷清醒：压力获得↑", 2, { stressGainMult: 1.06 });
@@ -869,8 +882,8 @@ export const EVENT_DEFS = [
     id: "evt_fx_matcha",
     emoji: "🍵",
     weight: 1,
-    title: "抹茶拿铁续命",
-    desc: "楼下新店第二杯半价，你吨吨吨灌下去：钱包 -35，但咖啡因让你几天内没那么容易累脱力（跨日精力恢复↑，持续 3 天）。",
+    title: "下午的一杯拿铁",
+    desc: "你和同学在楼下新店点了两杯拿铁，坐下来聊了会儿。现金 -35；接下来几天精力恢复有所改善（跨日精力恢复↑，持续 3 天）。",
     apply: (s) => {
       applyMoneyDelta(s, -35);
       applyStressDelta(s, -3, "event");
@@ -892,7 +905,7 @@ export const EVENT_DEFS = [
     id: "evt_fx_therapy",
     emoji: "🛋️",
     weight: 0.95,
-    title: "白嫖心理咨询券",
+    title: "校园心理咨询",
     desc: "学校心理健康中心发券，你去聊了一小时：当场压力略降；几天内情绪更稳，不容易被坏消息一下击穿（压力获得↓，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, -6, "event");
@@ -904,7 +917,7 @@ export const EVENT_DEFS = [
     emoji: "📱",
     weight: 1.1,
     title: "睡前刷拒信",
-    desc: "你发誓只看一眼邮箱，结果刷到两点。当场精力下滑；几天内睡前更容易焦虑上头（压力获得↑，持续 3 天）。",
+    desc: "你原本只想看一眼邮箱，却翻到凌晨两点。当场精力下降；几天内睡前仍难以放下求职的担忧（压力获得↑，持续 3 天）。",
     apply: (s) => {
       applyEnergyDelta(s, -8);
       applyStressDelta(s, 5, "event");
@@ -927,7 +940,7 @@ export const EVENT_DEFS = [
     emoji: "🍺",
     weight: 0.85,
     title: "宿醉周一",
-    desc: "昨晚聚餐喝高，今早头痛欲裂。当场精力崩盘；几天内又晕又丧（精力消耗↑，降压效果↓，持续 3 天）。",
+    desc: "昨晚聚餐喝高，今早头痛欲裂。当场精力大幅下降；几天内仍感到疲惫（精力消耗↑，降压效果↓，持续 3 天）。",
     apply: (s) => {
       applyEnergyDelta(s, -14);
       applyStressDelta(s, 6, "event");
@@ -939,7 +952,7 @@ export const EVENT_DEFS = [
     emoji: "💊",
     weight: 1,
     title: "维生素囤货",
-    desc: "直播间冲动下单三大瓶，当场现金 -88；但几天内回血更顺（主动精力回复↑，持续 3 天）。",
+    desc: "直播间冲动下单三大瓶，当场现金 -88；但几天内恢复精力更顺（主动精力回复↑，持续 3 天）。",
     apply: (s) => {
       applyMoneyDelta(s, -88);
       applyStressDelta(s, -2, "event");
@@ -963,7 +976,7 @@ export const EVENT_DEFS = [
     emoji: "📣",
     weight: 1.05,
     title: "室友晒 Offer",
-    desc: "群里有人晒三方，你当场酸到压力飙升；几天内更容易被比较心态绑架（压力获得↑，持续 3 天）。",
+    desc: "群里有人晒三方，你替他高兴，也开始担心自己的进度；几天内更容易受到比较的影响（压力获得↑，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, 11, "event");
       fxDebuff(s, "同辈压力：压力获得↑", 3, { stressGainMult: 1.12 });
@@ -1006,7 +1019,7 @@ export const EVENT_DEFS = [
     emoji: "🚌",
     weight: 1.1,
     title: "特种兵式一日游",
-    desc: "凌晨出发半夜回城，打卡五个景点。跳过 1 个自然日；钱花了、腿废了，压力倒是真降了。",
+    desc: "凌晨出发半夜回城，打卡五个景点。跳过 1 个自然日；走了一整天，身体很累，心情却轻松了一些。",
     apply: (s) => {
       const maxD = s.maxDays ?? 30;
       if (s.day < maxD) simulateForwardNaturalDays(s, 1);
@@ -1034,7 +1047,7 @@ export const EVENT_DEFS = [
     emoji: "🎤",
     weight: 1,
     title: "KTV 通宵场",
-    desc: "麦霸附体，第二天嗓子哑了、人废了。压力释放，身体抗议。",
+    desc: "大家轮流点歌，一直唱到天亮。心情放松了，嗓子和身体却需要休息。",
     apply: (s) => {
       applyMoneyDelta(s, -150);
       applyStressDelta(s, -12, "event");
@@ -1047,7 +1060,7 @@ export const EVENT_DEFS = [
     emoji: "🎬",
     weight: 1.05,
     title: "电影院连场马拉松",
-    desc: "爆米花配三部片，逃避可耻但有用。",
+    desc: "连续看完三部电影，出门才发现已经天黑。今晚没有检查邮箱。",
     apply: (s) => {
       applyMoneyDelta(s, -95);
       applyStressDelta(s, -9, "event");
@@ -1060,7 +1073,7 @@ export const EVENT_DEFS = [
     emoji: "🐱",
     weight: 1.15,
     title: "猫咖吸猫一整天",
-    desc: "毛茸茸治愈赛博焦虑，顺便办了张次卡。",
+    desc: "一只猫在你旁边睡了一下午。离开前，你给店里办了张次卡。",
     apply: (s) => {
       applyMoneyDelta(s, -88);
       applyStressDelta(s, -16, "event");
@@ -1073,8 +1086,8 @@ export const EVENT_DEFS = [
     emoji: "🎨",
     weight: 0.85,
     requires: { moneyMin: 300 },
-    title: "漫展排队地狱",
-    desc: "限定谷、签售、摄影区三选一排队。钱没了，腿断了，但同好碰杯很快乐。",
+    title: "漫展里的长队",
+    desc: "限定谷、签售、摄影区三选一排队。等待和逛展花了不少体力与现金，不过和同好聊天很开心。",
     apply: (s) => {
       applyMoneyDelta(s, -260);
       applyStressDelta(s, -6, "event");
@@ -1100,7 +1113,7 @@ export const EVENT_DEFS = [
     emoji: "♨️",
     weight: 0.9,
     requires: { moneyMin: 500 },
-    title: "温泉酒店躺平",
+    title: "温泉酒店休息日",
     desc: "私汤+自助餐，压力随水蒸气飘散。",
     apply: (s) => {
       applyMoneyDelta(s, -420);
@@ -1129,7 +1142,7 @@ export const EVENT_DEFS = [
     weight: 0.75,
     requires: { moneyMin: 600 },
     title: "户外音乐节",
-    desc: "泥地、人浪、耳鸣三件套，但现场真的炸。",
+    desc: "草地被踩成了泥，鞋子脏了，喜欢的歌却一首没错过。",
     apply: (s) => {
       applyMoneyDelta(s, -380);
       applyStressDelta(s, -18, "event");
@@ -1155,7 +1168,7 @@ export const EVENT_DEFS = [
     emoji: "🔦",
     weight: 1,
     title: "密室逃脱尖叫局",
-    desc: "恐怖本+脆皮队友=心率拉满。出来觉得秋招面试也没那么可怕。",
+    desc: "朋友比你先尖叫起来，你只好带着大家找出口。出来后，面试似乎也没那么让人紧张了。",
     apply: (s) => {
       applyMoneyDelta(s, -140);
       applyStressDelta(s, -11, "event");
@@ -1182,7 +1195,7 @@ export const EVENT_DEFS = [
     weight: 0.95,
     requires: { moneyMin: 350 },
     title: "电竞酒店开黑通宵",
-    desc: "五连跪但快乐，第二天脸肿成匹配分。",
+    desc: "大家连输了五局，还是约好了再来一次。第二天起床，才发现昨晚睡得太少。",
     apply: (s) => {
       applyMoneyDelta(s, -240);
       applyStressDelta(s, -13, "event");
@@ -1209,7 +1222,7 @@ export const EVENT_DEFS = [
     emoji: "🫠",
     weight: 1,
     title: "剧本杀被鸽",
-    desc: "车炸了，你在店里干等两小时，气到想给 HR 发拒信。",
+    desc: "几位玩家临时取消，游戏没能开始。你在店里等了两小时，只好和剩下的人商量改期。",
     apply: (s) => {
       applyStressDelta(s, 10, "event");
       applyEnergyDelta(s, -6);
@@ -1287,7 +1300,7 @@ export const EVENT_DEFS = [
     emoji: "📺",
     weight: 1.15,
     title: "宅家追剧一整天",
-    desc: "爽剧连刷，简历文档一眼没开。摆烂的快乐与罪恶感并存。",
+    desc: "看完一整天的剧，你放松了一些，也想起今天还没打开简历。明天需要重新安排准备时间。",
     apply: (s) => {
       applyStressDelta(s, -8, "event");
       applyEnergyDelta(s, -6);
@@ -1301,7 +1314,7 @@ export const EVENT_DEFS = [
     weight: 0.9,
     requires: { moneyMin: 450 },
     title: "按摩 SPA 一条龙",
-    desc: "肩颈松了，脑子也暂时不卷了。",
+    desc: "肩颈松了，也暂时放下了准备任务。",
     apply: (s) => {
       applyMoneyDelta(s, -310);
       applyStressDelta(s, -21, "event");
@@ -1344,7 +1357,7 @@ export const EVENT_DEFS = [
     weight: 0.95,
     requires: { moneyMin: 200 },
     title: "外拍约拍一整天",
-    desc: "修图修到半夜，但朋友圈点赞回血。",
+    desc: "修图修到半夜，但朋友圈点赞恢复精力。",
     apply: (s) => {
       applyMoneyDelta(s, -175);
       applyStressDelta(s, -8, "event");
@@ -1359,7 +1372,7 @@ export const EVENT_DEFS = [
     weight: 0.65,
     requires: { moneyMin: 1200 },
     title: "演唱会内场",
-    desc: "贵到肉疼，嗨到失忆，秋招明天再想。",
+    desc: "票价超出了原先的预算。熟悉的前奏响起时，你还是觉得这一晚值得。",
     apply: (s) => {
       applyMoneyDelta(s, -880);
       applyStressDelta(s, -28, "event");
@@ -1401,8 +1414,8 @@ export const EVENT_DEFS = [
     tags: ["entertainment"],
     emoji: "📺",
     weight: 1,
-    title: "直播打赏上头",
-    desc: "深夜看主播开箱，手滑送了礼物。当场现金与精力小损；但弹幕护体让你几天内没那么容易破防（压力获得↓，持续 3 天）。",
+    title: "直播间的一份礼物",
+    desc: "深夜看主播开箱，手滑送了礼物。当场现金与精力小损；不过直播间里的聊天让你几天内面对小事时更平静（压力获得↓，持续 3 天）。",
     apply: (s) => {
       applyMoneyDelta(s, -48);
       applyStressDelta(s, -4, "event");
@@ -1416,7 +1429,7 @@ export const EVENT_DEFS = [
     emoji: "🍜",
     weight: 1.02,
     title: "看吃播看到饿",
-    desc: "外卖 +60，碳水炸弹当场回血又犯困；几天内更容易吃撑犯困（精力消耗↑，持续 2 天）。",
+    desc: "外卖 +60，吃完后恢复了一些精力，也有些困倦；几天内更容易吃撑犯困（精力消耗↑，持续 2 天）。",
     apply: (s) => {
       applyMoneyDelta(s, -60);
       applyStressDelta(s, -5, "event");
@@ -1442,8 +1455,8 @@ export const EVENT_DEFS = [
     tags: ["entertainment"],
     emoji: "💃",
     weight: 1,
-    title: "随舞广场社死",
-    desc: "你被朋友拽去随机舞蹈，当场社死压力飙升；但跳完反而爽了，几天内回血更顺（主动精力回复↑，持续 3 天）。",
+    title: "广场上的舞蹈邀请",
+    desc: "朋友邀请你一起跳舞。起初有些紧张，结束后却放松了不少，几天内精力恢复更好（主动精力回复↑，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, 7, "event");
       applyEnergyDelta(s, -12);
@@ -1456,7 +1469,7 @@ export const EVENT_DEFS = [
     emoji: "🕹️",
     weight: 1.05,
     title: "街机厅币花光",
-    desc: "推币机血亏，当场心态小崩；币圈阴影让你几天内更容易上头（压力获得↑，持续 3 天）。",
+    desc: "游戏币很快用完了，你却没拿到期待的奖品。失落让当场压力小幅上升，几天内也更容易紧张（压力获得↑，持续 3 天）。",
     apply: (s) => {
       applyMoneyDelta(s, -120);
       applyStressDelta(s, 6, "event");
@@ -1483,13 +1496,13 @@ export const EVENT_DEFS = [
     tags: ["entertainment"],
     emoji: "🏮",
     weight: 1.08,
-    title: "夜市逛到腿断",
-    desc: "烤串奶茶一条龙，现金 -70，当场略降压；夜市余韵让你几天内跨日回血更稳（跨日精力恢复↑，持续 3 天）。",
+    title: "逛到收摊的夜市",
+    desc: "烤串奶茶一条龙，现金 -70，当场略降压；夜市余韵让你几天内跨日恢复精力更稳（跨日精力恢复↑，持续 3 天）。",
     apply: (s) => {
       applyMoneyDelta(s, -70);
       applyStressDelta(s, -8, "event");
       applyEnergyDelta(s, -14);
-      fxBuff(s, "逛吃回血：跨日精力恢复↑", 3, { passiveEnergyRecoverMult: 1.1 });
+      fxBuff(s, "逛吃恢复精力：跨日精力恢复↑", 3, { passiveEnergyRecoverMult: 1.1 });
     },
   },
   {
@@ -1497,8 +1510,8 @@ export const EVENT_DEFS = [
     tags: ["entertainment"],
     emoji: "🏐",
     weight: 0.92,
-    title: "野球场被虐",
-    desc: "被扣到怀疑人生，当场压力小升、精力大耗；但运动后几天内心态反而更钝感（压力获得↓，持续 3 天）。",
+    title: "球场上的强劲对手",
+    desc: "对手接连得分，你有些沮丧，当场压力小升、精力大耗；但运动后几天内心态反而更钝感（压力获得↓，持续 3 天）。",
     apply: (s) => {
       applyStressDelta(s, 5, "event");
       applyEnergyDelta(s, -22);
@@ -1512,7 +1525,7 @@ export const EVENT_DEFS = [
     weight: 0.3,
     requires: { moneyMin: 150 },
     title: "大浴场泡汤净化",
-    desc: "搓澡师傅手劲惊人，你泡到灵魂出窍。稀有体验：洗去一身晦气——若身上有负面状态效果可卸下；当场降压并小回血。",
+    desc: "搓澡师傅手劲不小，泡进热水后，你才慢慢放松下来。这次休整可解除身上的负面状态，并降低压力、恢复少量精力。",
     apply: (s) => {
       applyMoneyDelta(s, -85);
       purgeAllDebuffsForPurify(s);
@@ -1526,7 +1539,7 @@ export const EVENT_DEFS = [
     emoji: "🌅",
     weight: 1.05,
     title: "晨跑打卡三天",
-    desc: "你立 flag 只跑了一天，但阳光和风是真的：当场小耗精力、略降压；晨跑余韵让你两天内跨日回血更好（持续 2 天）。",
+    desc: "原本约好跑三天，这次只完成了一天，但阳光和风是真的：当场小耗精力、略降压；晨跑余韵让你两天内跨日恢复精力更好（持续 2 天）。",
     apply: (s) => {
       applyEnergyDelta(s, -10);
       applyStressDelta(s, -5, "event");
@@ -1539,7 +1552,7 @@ export const EVENT_DEFS = [
     emoji: "🎵",
     weight: 1.32,
     title: "舞萌DX / 中二节奏",
-    desc: "街机厅刷分：判定全绿、手台敲到起茧，Offer 邮件暂时读不到条——音游治百病，压力额外大幅下降（略耗精力与游戏币）。",
+    desc: "街机厅刷分：判定全绿、手台敲到起茧，Offer 邮件暂时读不到条——专注节奏让你暂时放下了求职的烦恼，压力额外大幅下降（略耗精力与游戏币）。",
     apply: (s) => {
       applyMoneyDelta(s, -65);
       applyStressDelta(s, -24, "event");
@@ -1570,6 +1583,7 @@ function pickUniformEvent(state, reserved, pacing) {
 /** 为本自然日生成事件队列（每早调用一次） */
 export function planEventsForCurrentDay(state) {
   const d = state.day;
+  if (inFirstRunIntro(state)) { state.eventPlanDay = d; state.eventModalQueue = []; return state.eventModalQueue; }
   if (state.eventPlanDay === d && Array.isArray(state.eventModalQueue)) {
     return state.eventModalQueue;
   }
@@ -1607,7 +1621,7 @@ function applyWithSummary(state, apply) {
   const previousOffers = [...(state.offers ?? [])];
   const before = Object.fromEntries(Object.keys(resourceFields).map(k => [k, state[k] ?? 0]));
   const previousEffects = new Set((state.transientEffects ?? []).map(fx => fx.id));
-  apply(state);
+  const outcome = apply(state);
   const changes = Object.entries(resourceFields).flatMap(([key, label]) => {
     const delta = Math.round(((state[key] ?? 0) - before[key]) * 10) / 10;
     return delta ? [label + ' ' + (delta > 0 ? '+' : '') + delta] : [];
@@ -1618,7 +1632,8 @@ function applyWithSummary(state, apply) {
   for (const fx of state.transientEffects ?? []) {
     if (!previousEffects.has(fx.id)) changes.push('新增状态「' + fx.label + '」');
   }
-  return changes.join('，') || '即时资源无变化';
+  const effects = changes.join('，') || '即时资源无变化';
+  return typeof outcome?.narrative === 'string' ? `${outcome.narrative}。${effects}` : effects;
 }
 
 // Facts settle on display; decisions settle only after a valid selection.
@@ -1688,6 +1703,7 @@ export const STUDY_OVERLOAD_THRESHOLD = 5;
  * 在「用脑过度」持续期间，若 debuff 下「学习」次数 &gt; 3（第 4 次起）则触发：清除 debuff，并获得三日学习增益 buff。
  */
 export function tryStudyBreakthroughEvent(state) {
+  if (inFirstRunIntro(state)) return null;
   if ((state.studyCountWhileOverloadDebuff ?? 0) <= 3) return null;
   if (state.studyOverloadDebuffUntilDay == null || state.day > state.studyOverloadDebuffUntilDay) {
     return null;
@@ -1697,13 +1713,13 @@ export function tryStudyBreakthroughEvent(state) {
   state.studyRecoveryBuffUntilDay = state.day + 2;
   return {
     id: "evt_study_breakthrough",
-    title: "咬牙顿悟",
+    title: "重新理清思路",
     desc: `你在效率低谷里仍硬啃书本，某一刻突然想通了：过劳的迷雾散去，「用脑过度」状态解除；接下来三个自然日「学习」带来的隐藏简历、隐藏面试与综合素质增益约为 ×${STUDY_RECOVERY_BUFF_MULT.toFixed(2)}。`,
     emoji: "💡",
     skipRecordEvent: true,
     apply(s) {
       applyStressDelta(s, -5, "event");
-      addLog(s, `咬牙顿悟：解除用脑过度，接下来三天学习效率提升（约 ×${STUDY_RECOVERY_BUFF_MULT.toFixed(2)}）。`);
+      addLog(s, `重新理清思路：解除用脑过度，接下来三天学习效率提升（约 ×${STUDY_RECOVERY_BUFF_MULT.toFixed(2)}）。`);
     },
   };
 }
@@ -1713,6 +1729,7 @@ export function tryStudyBreakthroughEvent(state) {
  * 已处于过劳 debuff 时不再重复弹窗；「顿悟」期间不触发用脑过度。
  */
 export function tryStudyOverloadEvent(state) {
+  if (inFirstRunIntro(state)) return null;
   if (state.studyRecoveryBuffUntilDay != null && state.day <= state.studyRecoveryBuffUntilDay) {
     return null;
   }
@@ -1726,7 +1743,7 @@ export function tryStudyOverloadEvent(state) {
     id: "evt_study_overload",
     title: "用脑过度",
     desc:
-      "最近五天里你学习次数拉满，大脑已经抗议了。接下来三个自然日「学习」带来的隐藏简历、隐藏面试与综合素质增益会明显下降，记得穿插休息；若在低谷期仍坚持学习超过三次，有机会顿悟翻身。",
+      "最近五天里你频繁学习，疲惫开始影响注意力。接下来三个自然日「学习」带来的隐藏简历、隐藏面试与综合素质增益会明显下降，记得穿插休息；若在低谷期仍坚持学习超过三次，有机会重新理清思路。",
     emoji: "🧠",
     skipRecordEvent: true,
     apply(s) {
@@ -1738,6 +1755,7 @@ export function tryStudyOverloadEvent(state) {
 
 /** 娱乐行动 20% 额外触发：仅从带 entertainment 标签的事件池抽取 */
 export function pickRandomEntertainmentEvent(state) {
+  if (inFirstRunIntro(state)) return null;
   const reserved = new Set((state.eventModalQueue ?? []).map(e => e.id));
   const pool = EVENT_DEFS.filter((e) => e.tags?.includes("entertainment") && eventEligible(e, state) && eventAvailableThisRun(e, state, reserved));
   return sampleEventPool(pool, state);
@@ -1746,7 +1764,7 @@ export function pickRandomEntertainmentEvent(state) {
 export const ENTERTAINMENT_PITY_AFTER = 7;
 /** Called once after a completed entertainment action. Empty pools preserve pity. */
 export function tryEntertainmentEvent(state, random = Math.random) {
-  if (state.gameOver) return null;
+  if (state.gameOver || inFirstRunIntro(state)) return null;
   const misses = state.entertainmentMisses ?? 0;
   if (misses < ENTERTAINMENT_PITY_AFTER && random() >= 0.2) {
     state.entertainmentMisses = misses + 1;

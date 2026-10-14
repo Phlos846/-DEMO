@@ -33,3 +33,18 @@ let modern = true;
 try { modern = localStorage.getItem('ar_layout_v1') !== 'classic'; } catch {}
 setLayout(modern);
 toggle.addEventListener('click', () => setLayout(!root.classList.contains('ui-modern')));
+
+// Keep only the day and AP visible after the mobile page header has scrolled away.
+const compactBar = document.getElementById('mobile-run-bar');
+const mobileQuery = window.matchMedia('(max-width: 760px)');
+let headerVisible = true;
+function updateCompactBar() {
+  const inRun = !document.getElementById('screen-main').classList.contains('hidden') || !document.getElementById('screen-apply').classList.contains('hidden');
+  const show = mobileQuery.matches && !headerVisible && inRun;
+  compactBar.classList.toggle('is-visible', show);
+  compactBar.setAttribute('aria-hidden', String(!show));
+}
+new IntersectionObserver(([entry]) => { headerVisible = entry.isIntersecting; updateCompactBar(); }).observe(header);
+const screenObserver = new MutationObserver(updateCompactBar);
+for (const id of ['screen-main', 'screen-apply']) screenObserver.observe(document.getElementById(id), { attributes: true, attributeFilter: ['class'] });
+mobileQuery.addEventListener('change', updateCompactBar);

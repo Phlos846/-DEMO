@@ -22,11 +22,12 @@
 .ui-modern .hidden-stats { grid-column: 1; grid-row: 4; }
 .ui-modern .actions { grid-column: 2; grid-row: 2 / 4; }
 .ui-modern #interview-banner { grid-column: 2; grid-row: 4; margin: 0; }
-.ui-modern .strategy-panel { grid-column: 1; grid-row: 5 / 7; }
+.ui-modern .strategy-panel { grid-column: 1; grid-row: 5 / 8; }
 .ui-modern .strategy-panel .money-grid { grid-template-columns: 1fr; }
 .ui-modern .money-panel { grid-column: 2; grid-row: 5; }
-.ui-modern .offers-panel { grid-column: 2; grid-row: 6; }
-.ui-modern .log-panel { grid-column: 1 / -1; grid-row: 7; }
+.ui-modern .offers-panel { grid-column: 2; grid-row: 7; }
+.ui-modern #limited-task-panel { grid-column: 2; grid-row: 6; }
+.ui-modern .log-panel { grid-column: 1 / -1; grid-row: 8; }
 .ui-modern .action-grid { gap: 12px; margin: 18px 0; }
 .ui-modern .action-btn { position: relative; padding: 18px 16px; min-height: 110px; font-size: 1.05rem; border-radius: 12px; background: #22354b; }
 .ui-modern .action-btn small { display: inline-block; margin-top: 7px; font-size: .8rem; line-height: 1.6; color: #c5d4e3; }
@@ -62,6 +63,7 @@
   .ui-modern .res .label { margin-bottom: 3px; }
   .ui-modern #status-effects-bar { order: 1; }
   .ui-modern .actions { order: 2; }
+  .ui-modern #limited-task-panel { order: 2; }
   .ui-modern .strategy-panel { order: 1; }
   .ui-modern .money-panel { order: 3; }
   .ui-modern #interview-banner { order: 3; }
@@ -85,3 +87,9 @@
 .ui-modern .version-tools { grid-column: 1 / -1; grid-row: 3; }
 .ui-modern .subtitle { grid-row: 2; }
 @media (max-width: 350px) { .ui-modern .version-tools { grid-row: 4; } }
+/* Shared action rules above also apply to the refreshed skin. */
+.ui-modern .action-grid .action-btn { padding: 38px 16px 14px; min-height: 104px; }
+@media (max-width: 760px) {
+  .ui-modern .top-bar { position: static; }
+  .ui-modern .action-grid .action-btn { padding: 34px 12px 12px; min-height: 96px; }
+}

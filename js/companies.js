@@ -1,6 +1,6 @@
 /** 公司名与 tag 词库；完整 tag 由 match.js 按匹配分动态生成 */
 
-import { NETA_COMPANY_PRESETS, createNetaShell } from "./netaCompanies.js?v=1.1.19";
+import { NETA_COMPANY_PRESETS, createNetaShell } from "./netaCompanies.js?v=1.1.42";
 
 export function hashSeed(seed) {
   let h = seed >>> 0;
@@ -134,7 +134,7 @@ export function generateCompanyName(seed) {
   return `${a}${b}${suf}`;
 }
 
-/** 薪资档：4.5-6 万起，每 1w 一阶，直至 30-32w 封顶 */
+/** 薪资档：4.5-6 万起，每 1w 一阶，至 30-32w，之后为稀有高薪档，50w 封顶 */
 export function buildSalaryBands() {
   const bands = [];
   bands.push({ id: "sal_45_6", label: "年薪4.5万-6万", tier: 0 });
@@ -147,6 +147,9 @@ export function buildSalaryBands() {
   }
   bands.push({ id: "sal_28_30", label: "年薪28万-30万", tier: 24 });
   bands.push({ id: "sal_30_32", label: "年薪30万-32万", tier: 25 });
+  for (const [low, high] of [[32, 36], [36, 40], [40, 45], [45, 50]]) {
+    bands.push({ id: `sal_${low}_${high}`, label: `年薪${low}万-${high}万`, tier: bands.length + 1 });
+  }
   return bands;
 }
 
@@ -204,6 +207,7 @@ export const HIDDEN_POOL = [
 ];
 
 export function qualityScore(q) {
+  if (q === "premium") return 4;
   if (q === "excellent") return 3;
   if (q === "good") return 2;
   if (q === "bad") return -2;
@@ -258,6 +262,7 @@ export function salaryLowWanFromTierLabel(label) {
 }
 
 function baseStarsFromSalaryQuality(quality) {
+  if (quality === "premium") return 6;
   if (quality === "bad") return 1;
   if (quality === "excellent") return 4;
   if (quality === "good") return 3;
@@ -265,6 +270,7 @@ function baseStarsFromSalaryQuality(quality) {
 }
 
 function baseStarsFromLowWan(lowWan) {
+  if (lowWan >= 32) return 6;
   if (lowWan < 12) return 1;
   if (lowWan < 18) return 2;
   if (lowWan < 25) return 3;
@@ -272,13 +278,13 @@ function baseStarsFromLowWan(lowWan) {
 }
 
 /**
- * 结算页公司评分：年薪档 1–4 星（差/一般/高/极高对应坏/一般/好/极好），年薪以外每个绿 tag +1、红 tag -1；传销 Offer 固定 0 星。
+ * 结算页公司评分：年薪基础档 1/2/3/4/6 星（坏/一般/好/极好/顶薪），年薪以外每个绿 tag +1、红 tag -1；传销 Offer 固定 0 星。
  * stars 可为负；结算 UI 用红色星显示负分的绝对值。
  * @returns {{ stars: number, colorful: boolean, isPyramid: boolean }}
  */
-export function computeEndOfferStarRating(offer) {
+export function computeEndOfferStarRating(offer, { visibleOnly = false } = {}) {
   if (!offer) return { stars: 0, colorful: false, isPyramid: false };
-  if (offer.isPyramidTrap) {
+  if (offer.isPyramidTrap && (!visibleOnly || offer.hiddenRevealed)) {
     return { stars: 0, colorful: false, isPyramid: true };
   }
   const st = offer.settlementTags;
@@ -293,13 +299,13 @@ export function computeEndOfferStarRating(offer) {
   if (st?.parts?.length > 1) {
     for (let i = 1; i < st.parts.length; i++) {
       const q = st.parts[i].quality ?? "normal";
-      if (q === "good" || q === "excellent") tagDelta += 1;
+      if (q === "good" || q === "excellent" || q === "premium") tagDelta += 1;
       else if (q === "bad") tagDelta -= 1;
     }
   }
-  if (st?.hidden) {
+  if (st?.hidden && (!visibleOnly || offer.hiddenRevealed)) {
     const q = st.hidden.quality ?? "normal";
-    if (q === "good" || q === "excellent") tagDelta += 1;
+    if (q === "good" || q === "excellent" || q === "premium") tagDelta += 1;
     else if (q === "bad") tagDelta -= 1;
   }
   const stars = base + tagDelta;

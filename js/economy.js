@@ -1,12 +1,12 @@
-import { applyMoneyDelta, applyEnergyDelta, applyStressDelta, livingCostMultiplier } from './talentRuntime.js?v=1.1.19';
-import { hasTalent } from './talents.js?v=1.1.19';
-import { hasStrategy, strategyLevel, onStrategyAction } from './strategies.js?v=1.1.19';
+import { applyMoneyDelta, applyEnergyDelta, applyStressDelta, livingCostMultiplier } from './talentRuntime.js?v=1.1.42';
+import { hasTalent } from './talents.js?v=1.1.42';
+import { hasStrategy, strategyLevel, onStrategyAction } from './strategies.js?v=1.1.42';
 
 export const MONEY_OPTIONS = [
-  { id: 'work', label: '接短工', detail: '+220 元 · 1 行动点 · 精力 −18、压力 +8；每日一次', cost: 0 },
-  { id: 'coach', label: '预约辅导', detail: '600 元 · 接下来 2 次学习属性收益 ×1.5；不叠加，不耗行动点', cost: 600 },
-  { id: 'recover', label: '安排放松护理', detail: '300 元 · 精力 +18、压力 −10；每日一次，不耗行动点', cost: 300 },
-  { id: 'repay', label: '偿还欠款', detail: '每次最多还 500 元；不耗行动点', cost: 0 },
+  { id: 'work', label: '接短工', detail: '+220 元 · 1 行动点 · 精力 −18 / 压力 +8 · 每日一次', cost: 0 },
+  { id: 'coach', label: '预约辅导', detail: '600 元 · 2 次学习收益 ×1.5 · 不叠加 · 0 行动点', cost: 600 },
+  { id: 'recover', label: '安排放松护理', detail: '300 元 · 精力 +18 / 压力 −10 · 每日一次 · 0 行动点', cost: 300 },
+  { id: 'repay', label: '偿还欠款', detail: '最多还 500 元 · 0 行动点', cost: 0 },
 ];
 
 export function moneyOptionUnavailable(s, id) {
@@ -66,11 +66,11 @@ export function livingBudgetSummary(s) {
 }
 
 export function moneyOptionDetail(s, id) {
-  if (id === 'coach') return `600 元 · 接下来 ${hasStrategy(s, 'invest') ? 3 : 2} 次学习属性收益 ×1.5；不叠加，不耗行动点`;
+  if (id === 'coach') return `600 元 · ${hasStrategy(s, 'invest') ? 3 : 2} 次学习收益 ×1.5 · 不叠加 · 0 行动点`;
   if (id === 'work') {
     const income = 220 + (hasStrategy(s, 'work') ? 80 : 0) + (hasStrategy(s, 'settlement') ? 40 : 0) + 30 * strategyLevel(s, 'general_work');
-    return `+${income} 元 · 1 行动点 · 精力 −18、压力 +${hasStrategy(s, 'work') ? 12 : 8}${hasStrategy(s, 'efficient') ? '；完成后回 6 精力' : ''}${hasStrategy(s, 'portfolio') ? '；简历能力 +1' : ''}；每日一次`;
+    return `+${income} 元 · 1 行动点 · 精力 −18 / 压力 +${hasStrategy(s, 'work') ? 12 : 8}${hasStrategy(s, 'efficient') ? ' · 回精力 +6' : ''}${hasStrategy(s, 'portfolio') ? ' · 简历能力 +1' : ''} · 每日一次`;
   }
-  if (id === 'recover') return `300 元 · 精力 +${18 + 4 * strategyLevel(s, 'general_care')}、压力 −10；每日一次，不耗行动点`;
+  if (id === 'recover') return `300 元 · 精力 +${18 + 4 * strategyLevel(s, 'general_care')} / 压力 −10 · 每日一次 · 0 行动点`;
   return MONEY_OPTIONS.find(x => x.id === id).detail;
 }

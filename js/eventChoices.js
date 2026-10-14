@@ -1,5 +1,6 @@
-import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.19';
-import { clampResumeToCap, addLog } from './state.js?v=1.1.19';
+import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.42';
+import { clampResumeToCap, addLog } from './state.js?v=1.1.42';
+import { SPECIAL_FOLLOWUPS } from './specialEndingEvents.js?v=1.1.42';
 
 const resume = (s, n) => { s.resumeQuality = clampResumeToCap(s, s.resumeQuality + n); };
 const interview = (s, n) => { s.hiddenInterview = Math.max(0, Math.min(100, s.hiddenInterview + n)); };
@@ -21,6 +22,7 @@ function schedule(s, id, delay) {
 }
 
 export const FOLLOW_UP_EVENTS = [
+  ...SPECIAL_FOLLOWUPS,
   { id: 'evt_network_feedback', title: '学长发回批注版简历', emoji: '📨', skipRecordEvent: true,
     desc: '两天前发给学长的简历回来了。批注指出了项目描述的漏洞，还附了一份面试提纲。综合素质 +6，面试发挥 +2。',
     apply(s) { resume(s, 6); interview(s, 2); } },

@@ -1,6 +1,6 @@
-import { applyEnergyDelta, applyStressDelta } from './talentRuntime.js?v=1.1.19';
-import { addTransientEffect } from './transientEffects.js?v=1.1.19';
-import { eventAvailableThisRun } from './eventRecurrence.js?v=1.1.19';
+import { applyEnergyDelta, applyStressDelta } from './talentRuntime.js?v=1.1.42';
+import { addTransientEffect } from './transientEffects.js?v=1.1.42';
+import { eventAvailableThisRun } from './eventRecurrence.js?v=1.1.42';
 
 const recentStudy = s => Array.from({length:5}, (_,i) => s.studyByDay?.[s.day-i] ?? 0).reduce((a,b)=>a+b,0);
 function effect(s, id, label, kind, values) {

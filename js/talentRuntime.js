@@ -1,16 +1,16 @@
-import { careerOwned } from './career.js?v=1.1.19';
+import { careerOwned } from './career.js?v=1.1.42';
 /**
  * 天赋运行时：压力、金钱、行动点、与天才/关系等特例
  */
 
-import { hasTalent } from "./talents.js?v=1.1.19";
+import { hasTalent } from "./talents.js?v=1.1.42";
 import {
   aggregateStressGainMult,
   aggregateStressReliefMult,
   aggregateEnergyDrainMult,
   aggregateEnergyRecoverMult,
   aggregatePassiveEnergyRecoverMult,
-} from "./transientEffects.js?v=1.1.19";
+} from "./transientEffects.js?v=1.1.42";
 
 function clamp(n, lo, hi) {
   return Math.max(lo, Math.min(hi, n));
@@ -61,7 +61,7 @@ export function applyNormalHumanBonus(state) {
   state.stress = clamp(state.stress - 2, 0, stressCap(state));
 }
 
-/** 玉米蒸：初始压力 */
+/** 容易紧张：初始压力 */
 export function applyCornInitialStress(state) {
   if (!hasTalent(state, "corn")) return;
   applyStressDelta(state, 14, "corn_init");
@@ -129,7 +129,7 @@ export function checkInstantFail(state) {
 }
 
 /**
- * 压力变化：耐压王锁、心理强大、大心脏、玉米蒸、清澈大学生等
+ * 压力变化：耐压王锁、心理强大、大心脏、容易紧张、清澈大学生等
  * source: event | action | offer_anxiety | corn_init | hospital | other
  */
 export function applyStressDelta(state, delta, source = "other") {
@@ -206,7 +206,7 @@ export function livingCostMultiplier(state) {
 }
 
 /**
- * 现金变动；不足部分记入负债（用于结局「戒戒你好」等）
+ * 现金变动；不足部分记入负债（用于结局「账单之后」等）
  */
 export function applyMoneyDelta(state, delta) {
   let m = (state.money ?? 0) + delta;
@@ -402,7 +402,7 @@ export function getEndingTalentNumericHints(state) {
     hints.push(`结算日行动点上限：${cap}（含天赋与当日特殊）`);
   }
   if (hasTalent(state, "frail_body")) {
-    hints.push("体虚：跨日精力恢复 ×0.72（相对基础，与牛马等叠乘）");
+    hints.push("体虚：跨日精力恢复 ×0.72（相对基础，与其他恢复修正叠乘）");
   }
   if (hasTalent(state, "resume_red_flag")) {
     hints.push("简历疑云：简历过筛期望 ×0.89");

@@ -15,7 +15,7 @@ export const CAREER_ITEMS = [
   { id: 'relic_letter', name: '信物：朋友的留言', costs: [4], relic: true, desc: '每局一次，主动使用降低 20 压力，受现有减压修正影响。' },
   { id: 'relic_envelope', name: '信物：备用红包', costs: [4], relic: true, desc: '每局一次，主动使用获得 400 元现金。' },
 ];
-const WINS = new Set(['early_settle','grand_slam','underdog_snipe','premium_salary','hungry_ok','industry_jinx','chill_hire','stacked','popular','scholar_risk','balance','normal_ok','outsourcing_fate','default_win']);
+const WINS = new Set(['event_remote_team','early_settle','grand_slam','underdog_snipe','premium_salary','hungry_ok','industry_jinx','chill_hire','stacked','popular','scholar_risk','balance','normal_ok','outsourcing_fate','default_win']);
 let cache;
 function normalize(raw) {
   const levels = {};
@@ -39,6 +39,12 @@ function commit(next) {
   try { localStorage.setItem(KEY, JSON.stringify(next)); cache = next; return true; } catch { return false; }
 }
 export const careerLevel = id => getCareer().levels[id] ?? 0;
+// A normal settlement unlocks progression, including unsuccessful endings.
+// Keep compatibility with runs completed before the points system existed.
+export function careerUnlocked() {
+  if (getCareer().rewarded.length > 0) return true;
+  try { return Number(JSON.parse(localStorage.getItem('ar_strategy_career_v1') || '{}')?.runs) > 0; } catch { return false; }
+}
 export function careerOwned(id) {
   if (careerLevel(id) > 0) return true;
   const item = CAREER_ITEMS.find(x => x.id === id);
@@ -48,6 +54,7 @@ export function careerOwned(id) {
   return false;
 }
 export function buyCareerItem(id) {
+  if (!careerUnlocked()) return '完成首局后解锁';
   const item = CAREER_ITEMS.find(x => x.id === id), profile = getCareer();
   if (!item) return '商品不存在';
   const level = careerLevel(id), cost = item.costs[level];
@@ -58,6 +65,7 @@ export function buyCareerItem(id) {
   return commit(next) ? '' : '浏览器无法保存，购买未生效，点数未扣除';
 }
 export function selectRelic(id) {
+  if (!careerUnlocked()) return false;
   if (id && !CAREER_ITEMS.some(x => x.id === id && x.relic && careerOwned(id))) return false;
   const next = structuredClone(getCareer()); next.selectedRelic = id;
   return commit(next);

@@ -1,5 +1,5 @@
-import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.19';
-import { clampResumeToCap, addLog } from './state.js?v=1.1.19';
+import { applyEnergyDelta, applyStressDelta, applyMoneyDelta } from './talentRuntime.js?v=1.1.42';
+import { clampResumeToCap, addLog } from './state.js?v=1.1.42';
 
 // Shared numeric settlement only; prompts and decisions are authored per situation.
 function effect(s, values) {
